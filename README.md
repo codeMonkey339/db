@@ -1,3 +1,10 @@
+The initial code base is cloned from https://github.com/CodingCat/sqllitecmu.git, which is contained in the ***first commit***.
+I tried to download the tar ball from course site but failed. And I found the repository from google.
+I'm sure that this version is up to date, as the 4th assignment mentioned the version.txt and its content matches related files in this code base.
+So I will do the project from this code base. If you're searching for the base code, just go to the link above and clone.
+
+--------------
+
 # 15-445 Database Systems
 # SQLite Project Source Code
 
