@@ -12,28 +12,55 @@
 #include <cstdlib>
 #include <vector>
 #include <string>
+#include <map>
+#include <memory>
+#include <mutex>
 
 #include "hash/hash_table.h"
 
 namespace cmudb {
 
-template <typename K, typename V>
-class ExtendibleHash : public HashTable<K, V> {
-public:
-  // constructor
-  ExtendibleHash(size_t size);
-  // helper function to generate hash addressing
-  size_t HashKey(const K &key);
-  // helper function to get global & local depth
-  int GetGlobalDepth() const;
-  int GetLocalDepth(int bucket_id) const;
-  int GetNumBuckets() const;
-  // lookup and modifier
-  bool Find(const K &key, V &value) override;
-  bool Remove(const K &key) override;
-  void Insert(const K &key, const V &value) override;
+    template<typename K, typename V>
+    class ExtendibleHash : public HashTable<K, V> {
+    public:
+        // constructor
+        ExtendibleHash(size_t size);
 
-private:
-  // add your own member variables here
-};
+        // helper function to generate hash addressing
+        size_t HashKey(const K &key);
+
+        // helper function to get global & local depth
+        int GetGlobalDepth() const;
+
+        int GetLocalDepth(int bucket_id) const;
+
+        int GetNumBuckets() const;
+
+        // lookup and modifier
+        bool Find(const K &key, V &value) override;
+
+        bool Remove(const K &key) override;
+
+        void Insert(const K &key, const V &value) override;
+
+    private:
+        // add your own member variables here
+        class Bucket {
+        public:
+            int localDepth;
+            std::map<K, V> contents;
+
+            Bucket(int depth) : localDepth(depth) {}
+        };
+
+        std::vector<std::shared_ptr<Bucket>> bucketDirectory;
+        int globalDepth;
+        const size_t bucketSizeLimit;
+
+        int getBucketIndex(size_t hashKey) const;
+
+        std::shared_ptr<Bucket> getBucket(const K &key);
+
+        std::mutex mtx;
+    };
 } // namespace cmudb
