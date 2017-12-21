@@ -49,33 +49,38 @@ BufferPoolManager::~BufferPoolManager() {
 Page *BufferPoolManager::FetchPage(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(latch_);
 
-  Page *ret = nullptr;
-  if (page_table_->Find(page_id, ret)) {
-    replacer_->Erase(ret);
-    pin_page(ret);
-    return ret;
+  Page *page = nullptr;
+  if (page_table_->Find(page_id, page)) {
+    replacer_->Erase(page);
+    pin_page(page);
+    return page;
   }
 
   if (!free_list_->empty()) {
-    ret = *free_list_->begin();
+    page = *free_list_->begin();
     free_list_->pop_front();
-    assert(ret->pin_count_ = 0);
+    assert(page->pin_count_ == 0);
+    assert(page->page_id_ == INVALID_PAGE_ID);
+    assert(!page->is_dirty_);
   } else {
-    if (!replacer_->Victim(ret)) {
+    if (!replacer_->Victim(page)) {
       return nullptr;
     }
-    if (ret->is_dirty_) {
-      disk_manager_->WritePage(ret->GetPageId(), ret->GetData());
-      ret->is_dirty_ = false;
+    assert(page->pin_count_ == 0);
+    if (page->is_dirty_) {
+      disk_manager_->WritePage(page->GetPageId(), page->GetData());
+      page->is_dirty_ = false;
     }
-    page_table_->Remove(ret->GetPageId());
+    page_table_->Remove(page->GetPageId());
   }
 
-  disk_manager_->ReadPage(page_id, ret->GetData());
-  page_table_->Insert(page_id, ret);
-  ret->page_id_ = page_id;
-  pin_page(ret);
-  return ret;
+  disk_manager_->ReadPage(page_id, page->GetData());
+  page_table_->Insert(page_id, page);
+  page->page_id_ = page_id;
+  pin_page(page);
+  assert(page->pin_count_ == 1);
+  assert(!page->is_dirty_);
+  return page;
 }
 
 /*
@@ -139,9 +144,11 @@ bool BufferPoolManager::DeletePage(page_id_t page_id) {
       return false;
     }
 
-    replacer_->Erase(page);
+    auto erase = replacer_->Erase(page);
+    assert(erase);
     free_list_->insert(free_list_->end(), page);
-    page_table_->Remove(page_id);
+    auto remove = page_table_->Remove(page_id);
+    assert(remove);
     page->page_id_ = INVALID_PAGE_ID;
     page->is_dirty_ = false;
     page->ResetMemory();
@@ -167,10 +174,13 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
     page = *free_list_->begin();
     free_list_->pop_front();
     assert(page->pin_count_ == 0);
+    assert(page->page_id_ == INVALID_PAGE_ID);
+    assert(!page->is_dirty_);
   } else {
     if (!replacer_->Victim(page)) {
       return nullptr;
     }
+    assert(page->pin_count_ == 0);
     if (page->is_dirty_) {
       disk_manager_->WritePage(page->GetPageId(), page->GetData());
       page->is_dirty_ = false;
