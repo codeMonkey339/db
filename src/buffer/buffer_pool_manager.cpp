@@ -59,6 +59,7 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
   if (!free_list_->empty()) {
     ret = *free_list_->begin();
     free_list_->pop_front();
+    assert(ret->pin_count_ = 0);
   } else {
     if (!replacer_->Victim(ret)) {
       return nullptr;
@@ -68,10 +69,10 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
       ret->is_dirty_ = false;
     }
     page_table_->Remove(ret->GetPageId());
-    page_table_->Insert(page_id, ret);
   }
 
   disk_manager_->ReadPage(page_id, ret->GetData());
+  page_table_->Insert(page_id, ret);
   ret->page_id_ = page_id;
   pin_page(ret);
   return ret;
@@ -124,27 +125,30 @@ bool BufferPoolManager::FlushPage(page_id_t page_id) {
 /**
  * User should call this method for deleting a page. This routine will call
  * disk manager to deallocate the page. First, if page is found within page
- * table, buffer pool manager should be reponsible for removing this entry out
- * of page table, reseting page metadata and adding back to free list. Second,
+ * table, buffer pool manager should be responsible for removing this entry out
+ * of page table, resetting page metadata and adding back to free list. Second,
  * call disk manager's DeallocatePage() method to delete from disk file. If
  * the page is found within page table, but pin_count != 0, return false
  */
 bool BufferPoolManager::DeletePage(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(latch_);
   Page *page = nullptr;
-  if (page_table_->Find(page_id, page) && page->GetPinCount() != 0) {
-    return false;
-  }
-  if (page) {
+  auto ret = page_table_->Find(page_id, page);
+  if (ret) {
+    if (page->GetPinCount() != 0) {
+      return false;
+    }
+
     replacer_->Erase(page);
     free_list_->insert(free_list_->end(), page);
+    page_table_->Remove(page_id);
     page->page_id_ = INVALID_PAGE_ID;
     page->is_dirty_ = false;
     page->ResetMemory();
   }
 
   disk_manager_->DeallocatePage(page_id);
-  return false;
+  return true;
 }
 
 /**
