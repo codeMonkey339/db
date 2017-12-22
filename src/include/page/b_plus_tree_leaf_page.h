@@ -17,6 +17,8 @@
  *  ------------------------------
  * | PageId (4) | NextPageId (4)
  *  ------------------------------
+ *
+ *  there is lsn in base class. so this should be 28bytes.
  */
 #pragma once
 #include <utility>

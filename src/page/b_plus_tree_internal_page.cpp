@@ -18,7 +18,14 @@ namespace cmudb {
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
-                                          page_id_t parent_id) {}
+                                          page_id_t parent_id) {
+
+  SetPageType(IndexPageType::LEAF_PAGE);
+  SetSize(0);
+  SetPageId(page_id);
+  SetParentPageId(parent_id);
+  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreePage)) / sizeof(MappingType));
+}
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a
  * array offset)

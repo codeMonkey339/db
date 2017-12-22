@@ -20,7 +20,15 @@ namespace cmudb {
  * next page id and set max size
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id) {
+  SetPageType(IndexPageType::LEAF_PAGE);
+  SetSize(0);
+  SetPageId(page_id);
+  SetParentPageId(parent_id);
+  //todo:what is next page id?
+  SetNextPageId(0);
+  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreePage)) / sizeof(MappingType));
+}
 
 /**
  * Helper methods to set/get next page id
@@ -194,14 +202,19 @@ std::string B_PLUS_TREE_LEAF_PAGE_TYPE::ToString(bool verbose) const {
   return stream.str();
 }
 
-template class BPlusTreeLeafPage<GenericKey<4>, RID,
-                                       GenericComparator<4>>;
-template class BPlusTreeLeafPage<GenericKey<8>, RID,
-                                       GenericComparator<8>>;
-template class BPlusTreeLeafPage<GenericKey<16>, RID,
-                                       GenericComparator<16>>;
-template class BPlusTreeLeafPage<GenericKey<32>, RID,
-                                       GenericComparator<32>>;
-template class BPlusTreeLeafPage<GenericKey<64>, RID,
-                                       GenericComparator<64>>;
+template
+class BPlusTreeLeafPage<GenericKey<4>, RID,
+                        GenericComparator<4>>;
+template
+class BPlusTreeLeafPage<GenericKey<8>, RID,
+                        GenericComparator<8>>;
+template
+class BPlusTreeLeafPage<GenericKey<16>, RID,
+                        GenericComparator<16>>;
+template
+class BPlusTreeLeafPage<GenericKey<32>, RID,
+                        GenericComparator<32>>;
+template
+class BPlusTreeLeafPage<GenericKey<64>, RID,
+                        GenericComparator<64>>;
 } // namespace cmudb
