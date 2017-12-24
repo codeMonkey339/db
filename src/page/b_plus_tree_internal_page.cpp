@@ -24,7 +24,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
   SetSize(0);
   SetPageId(page_id);
   SetParentPageId(parent_id);
-  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreePage)) / sizeof(MappingType));
+  //this is real keys which equals to branching factor - 1. not counting the fake key related to the left most link.
+  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreePage)) / sizeof(MappingType) - 1);
 }
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a

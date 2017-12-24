@@ -12,7 +12,7 @@ namespace cmudb {
 bool BPlusTreePage::IsLeafPage() const { return page_type_ == IndexPageType::LEAF_PAGE; }
 bool BPlusTreePage::IsRootPage() const {
   //not sure about this
-  return page_type_ != IndexPageType::INVALID_INDEX_PAGE && page_type_ != IndexPageType::INTERNAL_PAGE;
+  return page_type_ == IndexPageType::ROOT_PAGE;
 }
 void BPlusTreePage::SetPageType(IndexPageType page_type) { page_type_ = page_type; }
 
@@ -34,9 +34,14 @@ void BPlusTreePage::SetMaxSize(int size) { max_size_ = size; }
  * Helper method to get min page size
  * Generally, min page size == max page size / 2
  *
- * for now it's not least number larger than m/2, say m == maxsize == max out going pointer number
+ * ====below is written by myself
+ * <del>for now it's not least number larger than m/2, say m == maxsize == max out going pointer number
+ * this should be (GetMaxSize() + 1) / 2</del>
+ *
+ * update 12-23 project specification refers m to number of keys, so that make sense.
+ *
  */
-int BPlusTreePage::GetMinSize() const { return GetMaxSize() / 2; }
+int BPlusTreePage::GetMinSize() const { return (GetMaxSize()) / 2  ; }
 
 /*
  * Helper methods to get/set parent page id

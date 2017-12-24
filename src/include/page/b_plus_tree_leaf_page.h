@@ -71,5 +71,9 @@ private:
                      BufferPoolManager *buffer_pool_manager);
   page_id_t next_page_id_;
   MappingType array[0];
+
+  bool isFull(){
+    return GetSize() == GetMaxSize();
+  }
 };
 } // namespace cmudb
