@@ -2,7 +2,6 @@
  * b_plus_tree.cpp
  */
 #include <iostream>
-#include <string>
 
 #include "common/exception.h"
 #include "common/logger.h"
@@ -14,9 +13,9 @@ namespace cmudb {
 
 INDEX_TEMPLATE_ARGUMENTS
 BPLUSTREE_TYPE::BPlusTree(const std::string &name,
-                                BufferPoolManager *buffer_pool_manager,
-                                const KeyComparator &comparator,
-                                page_id_t root_page_id)
+                          BufferPoolManager *buffer_pool_manager,
+                          const KeyComparator &comparator,
+                          page_id_t root_page_id)
     : index_name_(name), root_page_id_(root_page_id),
       buffer_pool_manager_(buffer_pool_manager), comparator_(comparator) {}
 
@@ -24,7 +23,7 @@ BPLUSTREE_TYPE::BPlusTree(const std::string &name,
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::IsEmpty() const { return true; }
+bool BPLUSTREE_TYPE::IsEmpty() const { return root_page_id_ == INVALID_PAGE_ID; }
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -53,29 +52,65 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
                             Transaction *transaction) {
-  return false;
+  if (IsEmpty()) {
+    StartNewTree(key, value);
+    return true;
+  }
+  return InsertIntoLeaf(key, value, transaction);
+//  return false;
 }
 /*
  * Insert constant key & value pair into an empty tree
  * User needs to first ask for new page from buffer pool manager(NOTICE: throw
  * an "out of memory" exception if returned value is nullptr), then update b+
  * tree's root page id and insert entry directly into leaf page.
+ *
+ *
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {}
+void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
+  assert(IsEmpty());
+  page_id_t page_id;
+  Page *page = buffer_pool_manager_->NewPage(page_id);
+  if (page == nullptr) {
+    throw std::bad_alloc{};
+  }
+  root_page_id_ = page_id;
+  BPlusTreeLeafPage *lp = reinterpret_cast<BPlusTreeLeafPage *>(page->GetData());
+  lp->Init(page_id, INVALID_PAGE_ID);
+  InsertIntoLeaf(key, value);
+}
 
 /*
  * Insert constant key & value pair into leaf page
  * User needs to first find the right leaf page as insertion target, then look
  * through leaf page to see whether insert key exist or not. If exist, return
- * immdiately, otherwise insert entry. Remember to deal with split if necessary.
+ * immediately, otherwise insert entry. Remember to deal with split if necessary.
  * @return: since we only support unique key, if user try to insert duplicate
  * keys return false, otherwise return true.
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
                                     Transaction *transaction) {
-  return false;
+  Page *root = buffer_pool_manager_->FetchPage(root_page_id_);
+  BPlusTreePage *btp = reinterpret_cast<BPlusTreePage *>(root->GetData());
+  while (!btp->IsLeafPage()) {
+    BPlusTreeInternalPage *ip = reinterpret_cast<BPlusTreeInternalPage *>(btp);
+    ValueType next = ip->Lookup(key, comparator_);
+    assert(typeid(next) == typeid(page_id_t));
+    btp = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData());
+  }
+  BPlusTreeLeafPage *lp = reinterpret_cast<BPlusTreeLeafPage *>(btp);
+  auto originalSize = lp->GetSize();
+  auto newSize = lp->Insert(key, value, comparator_);
+  if (newSize > lp->GetMaxSize()) {
+    Page *oldPage = buffer_pool_manager_->FetchPage(lp->GetPageId());
+    Page *newPage = Split(oldPage);
+    BPlusTreeLeafPage *oldlp = reinterpret_cast<BPlusTreeLeafPage *>(oldPage->GetData());
+    BPlusTreeLeafPage *newlp = reinterpret_cast<BPlusTreeLeafPage *>(newPage->GetData());
+    InsertIntoParent(oldlp, oldlp->GetItem(oldlp->GetSize() - 1), newlp);
+  }
+  return originalSize != newSize;
 }
 
 /*
@@ -86,7 +121,20 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
  * of key & value pairs from input page to newly created page
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N> N *BPLUSTREE_TYPE::Split(N *node) { return nullptr; }
+template<typename N>
+N *BPLUSTREE_TYPE::Split(N *node) {
+  page_id_t page_id;
+  Page *newPage = buffer_pool_manager_->NewPage(page_id);
+  if (newPage == nullptr) {
+    throw std::bad_alloc();
+  }
+  typedef std::remove_pointer<N>::type *PagePtr;
+  PagePtr ptr = reinterpret_cast<PagePtr>(newPage->GetData());
+  ptr->Init(page_id, node->GetParentPageId());
+
+  node->moveHalfTo(newPage, buffer_pool_manager_);
+  return newPage;
+}
 
 /*
  * Insert key & value pair into internal page after split
@@ -101,7 +149,35 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                       const KeyType &key,
                                       BPlusTreePage *new_node,
-                                      Transaction *transaction) {}
+                                      Transaction *transaction) {
+  page_id_t parentPageId = old_node->GetParentPageId();
+  BPlusTreeInternalPage *ip = nullptr;
+  if (parentPageId == INVALID_PAGE_ID) {
+    Page *newPage = buffer_pool_manager_->NewPage(parentPageId);
+    if (newPage == nullptr) {
+      throw std::bad_alloc();
+    }
+    ip = reinterpret_cast<BPlusTreeInternalPage *>(newPage->GetData());
+    ip->Init(parentPageId, INVALID_PAGE_ID);
+    root_page_id_ = parentPageId;
+    UpdateRootPageId(false);
+  }
+
+  if (ip == nullptr) {
+    ip = reinterpret_cast<BPlusTreeInternalPage *>(buffer_pool_manager_->FetchPage(parentPageId)->GetData());
+  }
+
+  //insert new kv pair points to new_node after that
+  ip->InsertNodeAfter(old_node, key, new_node);
+
+  if (ip->GetSize() > ip->GetMaxSize()) {
+    Page *oldPage = buffer_pool_manager_->FetchPage(ip->GetPageId());
+    Page *newPage = Split(oldPage);
+    BPlusTreeLeafPage *oldlp = reinterpret_cast<BPlusTreeLeafPage *>(oldPage->GetData());
+    BPlusTreeLeafPage *newlp = reinterpret_cast<BPlusTreeLeafPage *>(newPage->GetData());
+    InsertIntoParent(oldlp, oldlp->GetItem(oldlp->GetSize() - 1), newlp);
+  }
+}
 
 /*****************************************************************************
  * REMOVE
@@ -124,7 +200,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
  * deletion happens
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N>
+template<typename N>
 bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   return false;
 }
@@ -142,7 +218,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
  * happend
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N>
+template<typename N>
 bool BPLUSTREE_TYPE::Coalesce(
     N *&neighbor_node, N *&node,
     BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *&parent,
@@ -160,7 +236,7 @@ bool BPLUSTREE_TYPE::Coalesce(
  * @param   node               input from method coalesceOrRedistribute()
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N>
+template<typename N>
 void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {}
 /*
  * Update root page if necessary
@@ -274,10 +350,15 @@ void BPLUSTREE_TYPE::RemoveFromFile(const std::string &file_name,
   }
 }
 
-template class BPlusTree<GenericKey<4>, RID, GenericComparator<4>>;
-template class BPlusTree<GenericKey<8>, RID, GenericComparator<8>>;
-template class BPlusTree<GenericKey<16>, RID, GenericComparator<16>>;
-template class BPlusTree<GenericKey<32>, RID, GenericComparator<32>>;
-template class BPlusTree<GenericKey<64>, RID, GenericComparator<64>>;
+template
+class BPlusTree<GenericKey<4>, RID, GenericComparator<4>>;
+template
+class BPlusTree<GenericKey<8>, RID, GenericComparator<8>>;
+template
+class BPlusTree<GenericKey<16>, RID, GenericComparator<16>>;
+template
+class BPlusTree<GenericKey<32>, RID, GenericComparator<32>>;
+template
+class BPlusTree<GenericKey<64>, RID, GenericComparator<64>>;
 
 } // namespace cmudb

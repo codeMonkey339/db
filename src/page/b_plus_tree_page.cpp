@@ -12,7 +12,7 @@ namespace cmudb {
 bool BPlusTreePage::IsLeafPage() const { return page_type_ == IndexPageType::LEAF_PAGE; }
 bool BPlusTreePage::IsRootPage() const {
   //not sure about this
-  return page_type_ == IndexPageType::ROOT_PAGE;
+  return parent_page_id_ == INVALID_PAGE_ID;
 }
 void BPlusTreePage::SetPageType(IndexPageType page_type) { page_type_ = page_type; }
 
