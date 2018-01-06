@@ -106,7 +106,15 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
     BPlusTreeInternalPage *recipient,
-    BufferPoolManager *buffer_pool_manager) {}
+    BufferPoolManager *buffer_pool_manager) {
+  //if there are odd keys, move ceiling  size / 2 keys to recipient
+  //the key on index zero is not use and should be push upward
+  int len = (GetSize() + 1)/ 2;
+  for(int i = GetSize() - len, j = 0; i < GetSize(); i++, j++){
+    recipient->array[j].first = array[i].first;
+    recipient->array[j].second = array[i].second;
+  }
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
@@ -223,7 +231,12 @@ std::string B_PLUS_TREE_INTERNAL_PAGE_TYPE::ToString(bool verbose) const {
   }
   return os.str();
 }
-
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::setKVAt(const KeyType& key, const ValueType& value, int index){
+  assert(this->GetSize() > index);
+  array[index].first = key;
+  array[index].second = value;
+}
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t,
                                            GenericComparator<4>>;
