@@ -94,6 +94,8 @@ private:
   page_id_t root_page_id_;
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
+  using BPInternalPage =BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
+
 };
 
 } // namespace cmudb

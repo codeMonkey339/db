@@ -25,6 +25,8 @@ namespace cmudb {
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE                                         \
   BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
 
+//#define BPInternalPage BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>
+
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeInternalPage : public BPlusTreePage {
 public:
@@ -58,7 +60,7 @@ public:
   void QueueUpChildren(std::queue<BPlusTreePage *> *queue,
                        BufferPoolManager *buffer_pool_manager);
 
-  void setKVAt(const KeyType& key, const ValueType, int index);
+  void setKVAt(const KeyType& key, const ValueType&, int index);
 private:
   void CopyHalfFrom(MappingType *items, int size,
                     BufferPoolManager *buffer_pool_manager);
@@ -70,4 +72,5 @@ private:
                      BufferPoolManager *buffer_pool_manager);
   MappingType array[0];
 };
+
 } // namespace cmudb

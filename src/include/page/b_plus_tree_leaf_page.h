@@ -29,10 +29,9 @@
 namespace cmudb {
 #define B_PLUS_TREE_LEAF_PAGE_TYPE                                             \
   BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>
-
+#define B_PLUS_TREE_LEAF_PARENT_TYPE BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeLeafPage : public BPlusTreePage {
-
 public:
   // After creating a new leaf page from buffer pool, must call initialize
   // method to set default values
@@ -69,6 +68,9 @@ private:
   void CopyLastFrom(const MappingType &item);
   void CopyFirstFrom(const MappingType &item, int parentIndex,
                      BufferPoolManager *buffer_pool_manager);
+  bool eq(const KeyComparator& cmp, const KeyType& k1, const KeyType& k2) const{
+    return cmp(k1, k2) == cmp(k2,k1);
+  }
   page_id_t next_page_id_;
   MappingType array[0];
 

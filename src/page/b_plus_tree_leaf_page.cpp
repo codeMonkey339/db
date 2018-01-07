@@ -103,7 +103,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
   assert(GetSize() <= GetMaxSize());
   int i = GetSize() - 1;
   for (; i >= 0; i--) {
-    if (comparator(key, array[i])) {
+    if (comparator(key, array[i].first)) {
       array[i + 1].first = array[i].first;
       array[i + 1].second = array[i].second;
     } else {
@@ -164,8 +164,8 @@ INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType &value,
                                         const KeyComparator &comparator) const {
   auto index = KeyIndex(key, comparator);
-  if (index >= 0 && index < GetSize() && array[index].first == key) {
-    array[index] = value;
+  if (index >= 0 && index < GetSize() && eq(comparator, array[index].first , key)) {
+    value = array[index].second;
     return true;
   }
   return false;
@@ -184,7 +184,7 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
     const KeyType &key, const KeyComparator &comparator) {
   auto index = KeyIndex(key, comparator);
-  if (index >= 0 && index < GetSize() && array[index].first == key) {
+  if (index >= 0 && index < GetSize() && eq(comparator, array[index].first , key)) {
     for (int i = index; i + 1 < GetSize(); i++) {
       array[i].first = array[i + 1].first;
       array[i].second = array[i + 1].second;
@@ -227,16 +227,18 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
     BPlusTreeLeafPage *recipient,
     BufferPoolManager *buffer_pool_manager) {
-  BPlusTreeInternalPage
-      *parent =
-      reinterpret_cast<BPlusTreeInternalPage *> (buffer_pool_manager->FetchPage(GetParentPageId())->GetData());
+  B_PLUS_TREE_LEAF_PARENT_TYPE *parent =
+      reinterpret_cast<B_PLUS_TREE_LEAF_PARENT_TYPE *> (buffer_pool_manager->FetchPage(GetParentPageId())->GetData());
   MappingType item = GetItem(0);
-  MappingType endOfRecipient = recipient->GetItem(recipient->GetSize() - 1);
+//  MappingType endOfRecipient = recipient->GetItem(recipient->GetSize() - 1);
   //insert in parent
   //need to remove first kv which points to recipient
-  auto parentKVIndexToRecipient = parent->ValueIndex(recipient->GetPageId());
-  parent->InsertNodeAfter(endOfRecipient.second, item.first, GetPageId());
-  parent->Remove(parentKVIndexToRecipient);
+//  auto parentKVIndexToRecipient = parent->ValueIndex(recipient->GetPageId());
+//  parent->InsertNodeAfter(recipient->GetPageId(), item.first, GetPageId());
+//  parent->Remove(parentKVIndexToRecipient);
+  //alter that directly
+  auto idx = parent->ValueIndex(recipient->GetPageId());
+  parent->SetKeyAt(idx + 1, GetItem(1).first);
 
   recipient->array[GetSize()].first = item.first;
   recipient->array[GetSize()].second = item.second;
@@ -257,9 +259,10 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(
     BPlusTreeLeafPage *recipient, int parentIndex,
     BufferPoolManager *buffer_pool_manager) {
-  BPlusTreeInternalPage
-      *parent =
-      reinterpret_cast<BPlusTreeInternalPage *> (buffer_pool_manager->FetchPage(GetParentPageId())->GetData());
+
+  B_PLUS_TREE_LEAF_PARENT_TYPE *parent =
+      reinterpret_cast<B_PLUS_TREE_LEAF_PARENT_TYPE *> (buffer_pool_manager->FetchPage(GetParentPageId())->GetData());
+
   MappingType item = GetItem(GetSize() - 1);
   IncreaseSize(-1);
   int index = parent->ValueIndex(GetPageId());

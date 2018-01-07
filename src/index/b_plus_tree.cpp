@@ -57,7 +57,6 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
     return true;
   }
   return InsertIntoLeaf(key, value, transaction);
-//  return false;
 }
 /*
  * Insert constant key & value pair into an empty tree
@@ -76,9 +75,11 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
     throw std::bad_alloc{};
   }
   root_page_id_ = page_id;
-  BPlusTreeLeafPage *lp = reinterpret_cast<BPlusTreeLeafPage *>(page->GetData());
+  B_PLUS_TREE_LEAF_PAGE_TYPE *lp = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
   lp->Init(page_id, INVALID_PAGE_ID);
   InsertIntoLeaf(key, value);
+
+  buffer_pool_manager_->UnpinPage(page_id, true);
 }
 
 /*
@@ -92,25 +93,28 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
                                     Transaction *transaction) {
-  Page *root = buffer_pool_manager_->FetchPage(root_page_id_);
+  page_id_t page_id = root_page_id_;
+  Page *root = buffer_pool_manager_->FetchPage(page_id);
   BPlusTreePage *btp = reinterpret_cast<BPlusTreePage *>(root->GetData());
   while (!btp->IsLeafPage()) {
-    BPlusTreeInternalPage *ip = reinterpret_cast<BPlusTreeInternalPage *>(btp);
-    ValueType next = ip->Lookup(key, comparator_);
-    assert(typeid(next) == typeid(page_id_t));
-    page_id_t  next_id = reinterpret_cast<page_id_t >(next);
-    btp = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(next_id)->GetData());
+    BPInternalPage *ip = reinterpret_cast<BPInternalPage *>(btp);
+    page_id_t next = ip->Lookup(key, comparator_);
+    buffer_pool_manager_->UnpinPage(page_id, false);
+    page_id = reinterpret_cast<page_id_t >(next);
+    btp = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(page_id)->GetData());
   }
-  BPlusTreeLeafPage *lp = reinterpret_cast<BPlusTreeLeafPage *>(btp);
+  B_PLUS_TREE_LEAF_PAGE_TYPE *lp = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(btp);
   auto originalSize = lp->GetSize();
   auto newSize = lp->Insert(key, value, comparator_);
   if (newSize > lp->GetMaxSize()) {
-    Page *oldPage = buffer_pool_manager_->FetchPage(lp->GetPageId());
-    Page *newPage = Split(lp);
-    BPlusTreeLeafPage *oldlp = reinterpret_cast<BPlusTreeLeafPage *>(oldPage->GetData());
-    BPlusTreeLeafPage *newlp = reinterpret_cast<BPlusTreeLeafPage *>(newPage->GetData());
-    InsertIntoParent(oldlp, oldlp->GetItem(oldlp->GetSize() - 1), newlp);
+    B_PLUS_TREE_LEAF_PAGE_TYPE *oldlp = lp;
+    B_PLUS_TREE_LEAF_PAGE_TYPE *newlp = Split(lp);
+    InsertIntoParent(oldlp, oldlp->KeyAt(oldlp->GetSize() - 1), newlp);
+
+    buffer_pool_manager_->UnpinPage(newlp->GetPageId(), true);
   }
+  buffer_pool_manager_->UnpinPage(page_id, true);
+
   return originalSize != newSize;
 }
 
@@ -129,13 +133,13 @@ N *BPLUSTREE_TYPE::Split(N *node) {
   if (newPage == nullptr) {
     throw std::bad_alloc();
   }
-  typedef std::remove_pointer<N>::type *PagePtr;
+  typedef typename std::remove_pointer<N>::type *PagePtr;
   PagePtr ptr = reinterpret_cast<PagePtr>(newPage->GetData());
   ptr->Init(page_id, node->GetParentPageId());
 
   //this is different between leaf node and internal node.
-  node->moveHalfTo(newPage, buffer_pool_manager_);
-  return newPage;
+  node->MoveHalfTo(ptr, buffer_pool_manager_);
+  return ptr;
 }
 
 /*
@@ -153,36 +157,37 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                       BPlusTreePage *new_node,
                                       Transaction *transaction) {
   page_id_t parentPageId = old_node->GetParentPageId();
-  BPlusTreeInternalPage *ip = nullptr;
+  BPInternalPage *ip = nullptr;
   if (parentPageId == INVALID_PAGE_ID) {
     Page *newPage = buffer_pool_manager_->NewPage(parentPageId);
     if (newPage == nullptr) {
       throw std::bad_alloc();
     }
-    ip = reinterpret_cast<BPlusTreeInternalPage *>(newPage->GetData());
+    ip = reinterpret_cast<BPInternalPage *>(newPage->GetData());
     ip->Init(parentPageId, INVALID_PAGE_ID);
     root_page_id_ = parentPageId;
     UpdateRootPageId(false);
+    old_node->SetParentPageId(parentPageId);
+    new_node->SetParentPageId(parentPageId);
     ip->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
 //    ip->setKVAt(KeyType(), old_node->GetPageId(), 0);
 //    ip->setKVAt(key, new_node->GetPageId(), 1);
+    buffer_pool_manager_->UnpinPage(parentPageId, true);
     return;
   }
 
-//  if (ip == nullptr) {
-    ip = reinterpret_cast<BPlusTreeInternalPage *>(buffer_pool_manager_->FetchPage(parentPageId)->GetData());
-//  }
+  ip = reinterpret_cast<BPInternalPage *>(buffer_pool_manager_->FetchPage(parentPageId)->GetData());
 
   //insert new kv pair points to new_node after that
-  ip->InsertNodeAfter(old_node, key, new_node);
+  ip->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
 
   if (ip->GetSize() > ip->GetMaxSize()) {
-    Page *oldPage = buffer_pool_manager_->FetchPage(ip->GetPageId());
-    Page *newPage = Split(ip);
-    BPlusTreeLeafPage *oldlp = reinterpret_cast<BPlusTreeLeafPage *>(oldPage->GetData());
-    BPlusTreeLeafPage *newlp = reinterpret_cast<BPlusTreeLeafPage *>(newPage->GetData());
-    InsertIntoParent(oldlp, newlp->GetItem(0), newlp);
+    BPInternalPage *oldlp = ip;
+    BPInternalPage *newlp = Split(ip);
+    InsertIntoParent(oldlp, newlp->KeyAt(0), newlp);
+    buffer_pool_manager_->UnpinPage(newlp->GetPageId(), true);
   }
+  buffer_pool_manager_->UnpinPage(parentPageId, true);
 }
 
 /*****************************************************************************
