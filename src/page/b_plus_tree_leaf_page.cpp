@@ -27,7 +27,9 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id) {
   SetPageId(page_id);
   SetParentPageId(parent_id);
   SetNextPageId(INVALID_PAGE_ID);
-  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreePage)) / sizeof(MappingType) - 1);//leave a always available slot for insertion
+  assert(sizeof(BPlusTreeLeafPage) == 28);
+  SetMaxSize(
+      (PAGE_SIZE - sizeof(BPlusTreeLeafPage)) / sizeof(MappingType) - 1);//leave a always available slot for insertion
 }
 
 /**
@@ -49,7 +51,7 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(
     const KeyType &key, const KeyComparator &comparator) const {
   int len = GetSize();
-  int b = 0;
+  int b = 0;//<del>the first slot's key is not used, so not start from 0</del> this is leaf node
   int e = len;
   while (b < e) {
     int mid = b + (e - b) / 2;
@@ -69,10 +71,8 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(
 INDEX_TEMPLATE_ARGUMENTS
 KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
   // replace with your own code
-  KeyType key;
   assert(index >= 0 && index < GetSize());
-  key = array[index].first;
-  return key;
+  return array[index].first;
 }
 
 /*
@@ -92,14 +92,15 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
 /*
  * Insert key & value pair into leaf page ordered by key
  * @return  page size after insertion
+ *
+ * for ease of implementation one valid slot is always guaranteed in 'Init' function when calculating size.
  */
 
-//where is reconstruction code?
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
                                        const ValueType &value,
                                        const KeyComparator &comparator) {
-  assert(GetSize() < GetMaxSize());
+  assert(GetSize() <= GetMaxSize());
   int i = GetSize() - 1;
   for (; i >= 0; i--) {
     if (comparator(key, array[i])) {
@@ -127,22 +128,22 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
     BPlusTreeLeafPage *recipient,
     __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
   assert(recipient != nullptr);
-  assert(GetSize() == GetMaxSize());
+  assert(GetSize() + 1 == GetMaxSize());
   //maintain the single link list
   recipient->next_page_id_ = next_page_id_;
   next_page_id_ = recipient->GetPageId();
 
   //copy
   int length = GetMaxSize();
-  int start = (length + 1) / 2;
-  for (int i = start, j = 0; i < length; i++, j++) {
+  int count = (length + 1) / 2;
+  for (int i = length - count, j = 0; i < length; i++, j++) {
     recipient->array[j].first = array[i].first;
     recipient->array[j].second = array[i].second;
   }
 
   //maintain size:
-  SetSize(start);
-  recipient->IncreaseSize(length - start);
+  SetSize(length - count);
+  recipient->SetSize(count);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -163,7 +164,7 @@ INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType &value,
                                         const KeyComparator &comparator) const {
   auto index = KeyIndex(key, comparator);
-  if (index >= 0 && index <= GetSize()) {
+  if (index >= 0 && index < GetSize() && array[index].first == key) {
     array[index] = value;
     return true;
   }
@@ -183,14 +184,14 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
     const KeyType &key, const KeyComparator &comparator) {
   auto index = KeyIndex(key, comparator);
-  if (index >= 0 && index <= GetSize()) {
+  if (index >= 0 && index < GetSize() && array[index].first == key) {
     for (int i = index; i + 1 < GetSize(); i++) {
       array[i].first = array[i + 1].first;
       array[i].second = array[i + 1].second;
     }
-    return true;
+    IncreaseSize(-1);
   }
-  return false;
+  return GetSize();
 }
 
 /*****************************************************************************
