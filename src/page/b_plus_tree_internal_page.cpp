@@ -20,12 +20,15 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
                                           page_id_t parent_id) {
 
-  SetPageType(IndexPageType::LEAF_PAGE);
+  SetPageType(IndexPageType::INTERNAL_PAGE);
   SetSize(0);
   SetPageId(page_id);
   SetParentPageId(parent_id);
-  //this is real keys which equals to branching factor - 1. not counting the fake key related to the left most link.
-  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreePage)) / sizeof(MappingType) - 1);
+  assert(sizeof(BPlusTreeInternalPage) == 24);
+  //this is real keys which equals to branching factor - 1.
+  //not counting the fake key related to the left most link.
+  //leave a slot for ease of insertion
+  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreeInternalPage)) / sizeof(MappingType) - 1 - 1);
 }
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a
@@ -33,13 +36,16 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
  */
 INDEX_TEMPLATE_ARGUMENTS
 KeyType B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const {
+  assert(index >= 0 && index < GetSize());
   // replace with your own code
-  KeyType key;
-  return key;
+  return array[index].first;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
+  assert(index >= 0 && index < GetSize());
+  array[index].first = key;
+}
 
 /*
  * Helper method to find and return array index(or offset), so that its value
@@ -47,7 +53,13 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {}
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
-  return 0;
+  //value is not sorted, so liner transverse
+  for(int i = 0; i < GetSize(); i++){
+    if(array[i].second == value ){
+      return i;
+    }
+  }
+  return -1;
 }
 
 /*
@@ -55,7 +67,10 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
  * offset)
  */
 INDEX_TEMPLATE_ARGUMENTS
-ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const { return 0; }
+ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
+  assert(index >= 0 && index < GetSize());
+  return array[index].second;
+}
 
 /*****************************************************************************
  * LOOKUP
@@ -69,7 +84,18 @@ INDEX_TEMPLATE_ARGUMENTS
 ValueType
 B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                        const KeyComparator &comparator) const {
-  return INVALID_PAGE_ID;
+  int b = 1;
+  int e = GetSize();
+  while(b < e){
+    int mid = b + (e - b)/2;
+    if(comparator(array[mid].first, key)){
+      b = mid + 1;
+    }else{
+      e = mid;
+    }
+  }
+
+  return array[b - 1].second;
 }
 
 /*****************************************************************************
@@ -77,14 +103,19 @@ B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
  *****************************************************************************/
 /*
  * Populate new root page with old_value + new_key & new_value
- * When the insertion cause overflow from leaf page all the way upto the root
+ * When the insertion cause overflow from leaf page all the way up to the root
  * page, you should create a new root page and populate its elements.
  * NOTE: This method is only called within InsertIntoParent()(b_plus_tree.cpp)
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(
     const ValueType &old_value, const KeyType &new_key,
-    const ValueType &new_value) {}
+    const ValueType &new_value) {
+  array[0].second = old_value;
+  array[1].first = new_key;
+  array[1].second = new_value;
+  IncreaseSize(2);
+}
 /*
  * Insert new_key & new_value pair right after the pair with its value ==
  * old_value
@@ -94,6 +125,14 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
     const ValueType &old_value, const KeyType &new_key,
     const ValueType &new_value) {
+  auto ret = ValueIndex(old_value);
+  assert(ret != -1);
+  for(int i = GetSize(); i - 1> ret; i--){
+    array[i].first = array[i - 1].first;
+    array[i].second = array[i - 1].second;
+  }
+  array[ret + 1].first = new_key;
+  array[ret + 1].second = new_value;
   return 0;
 }
 
@@ -108,8 +147,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
     BPlusTreeInternalPage *recipient,
     BufferPoolManager *buffer_pool_manager) {
   //if there are odd keys, move ceiling  size / 2 keys to recipient
-  //the key on index zero is not use and should be push upward
-  int len = (GetSize() + 1)/ 2;
+  //the key on index zero in the recipient is not use and should be push upward
+  int len = (GetSize() + 1)/ 2;//ceiling for odd
   for(int i = GetSize() - len, j = 0; i < GetSize(); i++, j++){
     recipient->array[j].first = array[i].first;
     recipient->array[j].second = array[i].second;
@@ -118,7 +157,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
-    MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {}
+    MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
+  //seems not useful for the moment
+}
 
 /*****************************************************************************
  * REMOVE

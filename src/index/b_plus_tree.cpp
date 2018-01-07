@@ -163,8 +163,9 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
     ip->Init(parentPageId, INVALID_PAGE_ID);
     root_page_id_ = parentPageId;
     UpdateRootPageId(false);
-    ip->setKVAt(KeyType(), old_node->GetPageId(), 0);
-    ip->setKVAt(key, new_node->GetPageId(), 1);
+    ip->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
+//    ip->setKVAt(KeyType(), old_node->GetPageId(), 0);
+//    ip->setKVAt(key, new_node->GetPageId(), 1);
     return;
   }
 
