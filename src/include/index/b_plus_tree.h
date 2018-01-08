@@ -24,11 +24,11 @@ namespace cmudb {
 // Main class providing the API for the Interactive B+ Tree.
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
-public:
+ public:
   explicit BPlusTree(const std::string &name,
-                           BufferPoolManager *buffer_pool_manager,
-                           const KeyComparator &comparator,
-                           page_id_t root_page_id = INVALID_PAGE_ID);
+                     BufferPoolManager *buffer_pool_manager,
+                     const KeyComparator &comparator,
+                     page_id_t root_page_id = INVALID_PAGE_ID);
 
   // Returns true if this B+ tree has no keys and values.
   bool IsEmpty() const;
@@ -62,7 +62,7 @@ public:
   B_PLUS_TREE_LEAF_PAGE_TYPE *FindLeafPage(const KeyType &key,
                                            bool leftMost = false);
 
-private:
+ private:
   void StartNewTree(const KeyType &key, const ValueType &value);
 
   bool InsertIntoLeaf(const KeyType &key, const ValueType &value,
@@ -72,18 +72,20 @@ private:
                         BPlusTreePage *new_node,
                         Transaction *transaction = nullptr);
 
-  template <typename N> N *Split(N *node);
+  template<typename N>
+  N *Split(N *node);
 
-  template <typename N>
+  template<typename N>
   bool CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr);
 
-  template <typename N>
+  template<typename N>
   bool Coalesce(
       N *&neighbor_node, N *&node,
       BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *&parent,
       int index, Transaction *transaction = nullptr);
 
-  template <typename N> void Redistribute(N *neighbor_node, N *node, int index);
+  template<typename N>
+  void Redistribute(N *neighbor_node, N *node, int index);
 
   bool AdjustRoot(BPlusTreePage *node);
 
@@ -95,7 +97,15 @@ private:
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
   using BPInternalPage =BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
-
+  BPInternalPage *GetInternalPage(page_id_t page_id) {
+    return reinterpret_cast<BPInternalPage *>(GetPage(page_id));
+  }
+  BPlusTreePage *GetPage(page_id_t page_id) {
+    Page *page = buffer_pool_manager_->FetchPage(page_id);
+    //if this happens, there must be some "unpin" missing.
+    assert(page != nullptr);
+    return reinterpret_cast<BPlusTreePage *>(page->GetData());
+  }
 };
 
 } // namespace cmudb
