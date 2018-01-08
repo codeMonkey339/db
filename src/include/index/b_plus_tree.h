@@ -106,6 +106,8 @@ class BPlusTree {
     assert(page != nullptr);
     return reinterpret_cast<BPlusTreePage *>(page->GetData());
   }
+
+  B_PLUS_TREE_LEAF_PAGE_TYPE* GetLeafPage(const KeyType& key);
 };
 
 } // namespace cmudb
