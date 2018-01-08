@@ -54,14 +54,14 @@ public:
   void MoveHalfTo(BPlusTreeLeafPage *recipient,
                   BufferPoolManager *buffer_pool_manager /* Unused */);
   void MoveAllTo(BPlusTreeLeafPage *recipient, int /* Unused */,
-                 BufferPoolManager * /* Unused */);
+                 BufferPoolManager * /* Unused */, const KeyComparator& comparator);
   void MoveFirstToEndOf(BPlusTreeLeafPage *recipient,
                         BufferPoolManager *buffer_pool_manager);
   void MoveLastToFrontOf(BPlusTreeLeafPage *recipient, int parentIndex,
                          BufferPoolManager *buffer_pool_manager);
   // Debug
   std::string ToString(bool verbose = false) const;
-
+  KeyType firstKey() const{assert(GetSize() != 0); return array[0].first;}
 private:
   void CopyHalfFrom(MappingType *items, int size);
   void CopyAllFrom(MappingType *items, int size);

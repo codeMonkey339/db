@@ -29,7 +29,7 @@ namespace cmudb {
 
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeInternalPage : public BPlusTreePage {
-public:
+ public:
   // must call initialize method after "create" a new node
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID);
 
@@ -49,7 +49,7 @@ public:
   void MoveHalfTo(BPlusTreeInternalPage *recipient,
                   BufferPoolManager *buffer_pool_manager);
   void MoveAllTo(BPlusTreeInternalPage *recipient, int index_in_parent,
-                 BufferPoolManager *buffer_pool_manager);
+                 BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator);
   void MoveFirstToEndOf(BPlusTreeInternalPage *recipient,
                         BufferPoolManager *buffer_pool_manager);
   void MoveLastToFrontOf(BPlusTreeInternalPage *recipient,
@@ -60,8 +60,17 @@ public:
   void QueueUpChildren(std::queue<BPlusTreePage *> *queue,
                        BufferPoolManager *buffer_pool_manager);
 
-  void setKVAt(const KeyType& key, const ValueType&, int index);
-private:
+  void SetKVAt(const KeyType &key, const ValueType &, int index);
+
+  void SetValueAt(int index, const ValueType &v) {
+    array[index].second = v;
+  }
+
+  KeyType firstKey() const {
+    assert(GetSize() != 0);
+    return array[1].first;
+  }
+ private:
   void CopyHalfFrom(MappingType *items, int size,
                     BufferPoolManager *buffer_pool_manager);
   void CopyAllFrom(MappingType *items, int size,

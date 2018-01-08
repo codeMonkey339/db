@@ -203,9 +203,25 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
-                                           int, BufferPoolManager *) {
-  assert(false);
-  //remove and assign to recipient?
+                                           int, BufferPoolManager * ,const KeyComparator& comparator) {
+  if(comparator(recipient->array[0].first , array[0].first)){
+    for(int i = 0; i < GetSize(); i++){
+      recipient->array[recipient->GetSize() + i].first = array[i].first;
+      recipient->array[recipient->GetSize() + i].second = array[i].second;
+    }
+    recipient->IncreaseSize(GetSize());
+    IncreaseSize(-1 * GetSize());
+    recipient->SetNextPageId(GetNextPageId());
+  }else{
+    for(int i = GetSize() + recipient->GetSize() - 1; i >= GetSize(); i--){
+      recipient->array[i].first = recipient->array[i - GetSize()].first;
+      recipient->array[i].second = recipient->array[i - GetSize()].second;
+    }
+    for(int i = 0; i < GetSize(); i++){
+      recipient->array[i].first = array[i].first;
+      recipient->array[i].second = array[i].second;
+    }
+  }
 }
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyAllFrom(MappingType *items, int size) {
