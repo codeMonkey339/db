@@ -310,7 +310,7 @@ bool BPLUSTREE_TYPE::Coalesce(
     index = parent->ValueIndex(node->GetPageId());
     parent->SetValueAt(index, neighbor_node->GetPageId());
   }
-  return parent->GetSize() >= parent->GetMaxSize();
+  return parent->GetSize() < parent->GetMaxSize();
 }
 
 /*
