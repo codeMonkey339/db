@@ -17,7 +17,8 @@ class IndexIterator {
   IndexIterator(page_id_t page_id, int idx, BufferPoolManager &buff) :
       index(idx), bufferPoolManager(buff) {
     leafPage = GetLeafPage(page_id);
-    assert(leafPage->GetSize() > index && index >= 0);
+    assert(index >= 0);
+    noMoreRecords = leafPage->GetSize() <= index;
   }
   ~IndexIterator();
 
@@ -28,7 +29,7 @@ class IndexIterator {
   IndexIterator &operator=(const IndexIterator &) = delete;
 
   bool isEnd() {
-    return index == leafPage->GetSize() && leafPage->GetNextPageId() == INVALID_PAGE_ID;
+    return noMoreRecords;
   }
 
   const MappingType &operator*() {
@@ -40,11 +41,15 @@ class IndexIterator {
   IndexIterator &operator++() {
     index++;
     if (index >= leafPage->GetSize()) {
-      index = 0;
       page_id_t next = leafPage->GetNextPageId();
-      bufferPoolManager.UnpinPage(leafPage->GetPageId(), false);
-      leafPage =
-          reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *> (bufferPoolManager.FetchPage(next)->GetData());
+      if (next == INVALID_PAGE_ID) {
+        noMoreRecords = true;
+      } else {
+        index = 0;
+        bufferPoolManager.UnpinPage(leafPage->GetPageId(), false);
+        leafPage =
+            reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *> (bufferPoolManager.FetchPage(next)->GetData());
+      }
     }
     return *this;
   }
@@ -52,10 +57,12 @@ class IndexIterator {
  private:
   // add your own private member variables here
   B_PLUS_TREE_LEAF_PAGE_TYPE *leafPage;
-  int index = 0;
+  int index;
   BufferPoolManager &bufferPoolManager;
+  bool noMoreRecords;
 
   B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(page_id_t page_id) {
+    if (page_id == INVALID_PAGE_ID) { return nullptr; }
     return reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(bufferPoolManager.FetchPage(page_id)->GetData());
   }
 };

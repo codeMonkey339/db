@@ -101,13 +101,14 @@ class BPlusTree {
     return reinterpret_cast<BPInternalPage *>(GetPage(page_id));
   }
   BPlusTreePage *GetPage(page_id_t page_id) {
+    if (page_id == INVALID_PAGE_ID) { return nullptr; }
     Page *page = buffer_pool_manager_->FetchPage(page_id);
     //if this happens, there must be some "unpin" missing.
     assert(page != nullptr);
     return reinterpret_cast<BPlusTreePage *>(page->GetData());
   }
 
-  B_PLUS_TREE_LEAF_PAGE_TYPE* GetLeafPage(const KeyType& key);
+  B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(const KeyType &key);
 };
 
 } // namespace cmudb

@@ -55,6 +55,13 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   void MoveLastToFrontOf(BPlusTreeInternalPage *recipient,
                          int parent_index,
                          BufferPoolManager *buffer_pool_manager);
+
+  bool shouldSplit() const {
+    return GetSize() - 1 > GetMaxSize() - 1;
+  }
+  bool shouldCoalesce() const {
+    return GetSize() - 1 < GetMinSize();
+  }
   // DEUBG and PRINT
   std::string ToString(bool verbose) const;
   void QueueUpChildren(std::queue<BPlusTreePage *> *queue,

@@ -28,7 +28,12 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
   //this is real keys which equals to branching factor - 1.
   //not counting the fake key related to the left most link.
   //leave a slot for ease of insertion
-  SetMaxSize((PAGE_SIZE - sizeof(BPlusTreeInternalPage)) / sizeof(MappingType) - 1 - 1);
+  //well, size should be all kv pairs include the one index 0, which has no key
+  //real key's count are GetSize - 1
+  //that is to say, for internal node, this is branching factor
+  int size = (PAGE_SIZE - sizeof(BPlusTreeInternalPage)) / sizeof(MappingType) - 1;
+  size &= ~(1);
+  SetMaxSize(size);
 }
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a
@@ -68,7 +73,17 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
  */
 INDEX_TEMPLATE_ARGUMENTS
 ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
-  assert(index >= 0 && index < GetSize());
+  assert(
+      (
+          GetSize() <= GetMaxSize() &&
+              index >= 0 && index < GetSize()
+      ) ||
+          (
+              GetSize() == GetMaxSize() + 1 &&
+                  index == GetSize()
+          )
+
+  );
   return array[index].second;
 }
 
@@ -201,7 +216,10 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator) {
   int len = GetSize() + recipient->GetSize();
   BPlusTreeInternalPage
-      *parent = reinterpret_cast<BPlusTreeInternalPage *>(buffer_pool_manager->FetchPage(GetParentPageId()));
+      *parent =
+      GetParentPageId() == INVALID_PAGE_ID ? nullptr :
+      reinterpret_cast<BPlusTreeInternalPage *>(buffer_pool_manager->FetchPage(GetParentPageId()));
+  assert(parent);
   KeyType keyType = parent->KeyAt(index_in_parent);
   if (comparator(firstKey(), recipient->firstKey()) == -1) {
     for (int i = len - 1; i >= GetSize(); i--) {
@@ -305,7 +323,7 @@ std::string B_PLUS_TREE_INTERNAL_PAGE_TYPE::ToString(bool verbose) const {
   std::ostringstream os;
   if (verbose) {
     os << "[pageId: " << GetPageId() << " parentId: " << GetParentPageId()
-       << "]<" << GetSize() << "> ";
+       << "]<keys:" << GetSize() << "> :\n";
   }
 
   int entry = verbose ? 0 : 1;
