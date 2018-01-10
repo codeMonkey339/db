@@ -78,7 +78,7 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   B_PLUS_TREE_LEAF_PAGE_TYPE *lp = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
   lp->Init(page_id, INVALID_PAGE_ID);
   InsertIntoLeaf(key, value);
-
+  UpdateRootPageId(true);
   buffer_pool_manager_->UnpinPage(page_id, true);
 }
 
@@ -232,6 +232,11 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   //param node could be a leaf page or a internal page
   BPlusTreePage *btp = node;
   BPInternalPage *parent = GetInternalPage(btp->GetParentPageId());
+  if (parent == nullptr) {
+    assert(node->IsRootPage());
+    return AdjustRoot(node);
+  }
+
   auto idx = parent->ValueIndex(btp->GetPageId());
 
   decltype(node) leftSibling = nullptr;
@@ -310,7 +315,9 @@ bool BPLUSTREE_TYPE::Coalesce(
     index = parent->ValueIndex(node->GetPageId());
     parent->SetValueAt(index, neighbor_node->GetPageId());
   }
-  return parent->GetSize() < parent->GetMaxSize();
+
+  auto ret = parent->GetSize() < parent->GetMinSize();
+  return ret;
 }
 
 /*
@@ -352,6 +359,23 @@ void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
+  assert(old_root_node->IsRootPage());
+  if (old_root_node->IsLeafPage() && old_root_node->GetSize() < old_root_node->GetMinSize()) {
+    //case 2
+    root_page_id_ = INVALID_PAGE_ID;
+    UpdateRootPageId(false);
+    return true;
+  }
+
+  if (!old_root_node->IsLeafPage() && old_root_node->GetSize() == 0) {
+    //case 1
+    BPInternalPage *ip = reinterpret_cast<BPInternalPage *>(old_root_node);
+    BPlusTreePage *newRoot = GetPage(ip->ValueAt(0));
+    root_page_id_ = newRoot->GetPageId();
+    newRoot->SetParentPageId(INVALID_PAGE_ID);
+    UpdateRootPageId(false);
+    return true;
+  }
   return false;
 }
 

@@ -41,7 +41,7 @@ void BPlusTreePage::SetMaxSize(int size) { max_size_ = size; }
  * update 12-23 project specification refers m to number of keys, so that make sense.
  *
  */
-int BPlusTreePage::GetMinSize() const { return (GetMaxSize()) / 2  ; }
+int BPlusTreePage::GetMinSize() const { return IsRootPage() ? 1 : (GetMaxSize()) / 2  ; }
 
 /*
  * Helper methods to get/set parent page id
