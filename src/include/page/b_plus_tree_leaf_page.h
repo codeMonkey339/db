@@ -78,7 +78,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   void CopyFirstFrom(const MappingType &item, int parentIndex,
                      BufferPoolManager *buffer_pool_manager);
   bool eq(const KeyComparator &cmp, const KeyType &k1, const KeyType &k2) const {
-    return cmp(k1, k2) == cmp(k2, k1);
+    return cmp(k1, k2) == 0;
   }
   page_id_t next_page_id_;
   MappingType array[0];

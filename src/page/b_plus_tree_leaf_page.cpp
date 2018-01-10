@@ -233,6 +233,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
       recipient->array[i].first = array[i].first;
       recipient->array[i].second = array[i].second;
     }
+    recipient->IncreaseSize(GetSize());
+    IncreaseSize(-1 * GetSize());
   }
 }
 INDEX_TEMPLATE_ARGUMENTS
