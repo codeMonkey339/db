@@ -257,24 +257,27 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
     BPlusTreeLeafPage *recipient,
     BufferPoolManager *buffer_pool_manager) {
-  B_PLUS_TREE_LEAF_PARENT_TYPE *parent = GetParentPageId() == INVALID_PAGE_ID ? nullptr :
-                                         reinterpret_cast<B_PLUS_TREE_LEAF_PARENT_TYPE *> (buffer_pool_manager->FetchPage(
-                                             GetParentPageId())->GetData());
+  assert(recipient->next_page_id_ == GetPageId());
+  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+  assert(page);
+  B_PLUS_TREE_LEAF_PARENT_TYPE
+      *parent = reinterpret_cast<B_PLUS_TREE_LEAF_PARENT_TYPE *> (page->GetData());
   MappingType item = GetItem(0);
-//  MappingType endOfRecipient = recipient->GetItem(recipient->GetSize() - 1);
-  //insert in parent
-  //need to remove first kv which points to recipient
-//  auto parentKVIndexToRecipient = parent->ValueIndex(recipient->GetPageId());
-//  parent->InsertNodeAfter(recipient->GetPageId(), item.first, GetPageId());
-//  parent->Remove(parentKVIndexToRecipient);
   //alter that directly
   assert(parent);
-  auto idx = parent->ValueIndex(recipient->GetPageId());
-  parent->SetKeyAt(idx + 1, GetItem(1).first);
+  auto idx = parent->ValueIndex(GetPageId());
+  parent->SetKeyAt(idx, item.first);
 
   recipient->array[GetSize()].first = item.first;
   recipient->array[GetSize()].second = item.second;
   recipient->IncreaseSize(1);
+  for (int i = 0; i + 1 < GetSize(); i++) {
+    array[i].first = array[i + 1].first;
+    array[i].second = array[i + 1].second;
+  }
+  IncreaseSize(-1);
+
+  buffer_pool_manager->UnpinPage(GetParentPageId(), true);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -291,19 +294,30 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(
     BPlusTreeLeafPage *recipient, int parentIndex,
     BufferPoolManager *buffer_pool_manager) {
-
-  B_PLUS_TREE_LEAF_PARENT_TYPE *parent = GetParentPageId() == INVALID_PAGE_ID ? nullptr :
-                                         reinterpret_cast<B_PLUS_TREE_LEAF_PARENT_TYPE *> (buffer_pool_manager->FetchPage(
-                                             GetParentPageId())->GetData());
+  assert(next_page_id_ == recipient->GetPageId());
+  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+  assert(page);
+  B_PLUS_TREE_LEAF_PARENT_TYPE *parent =
+      reinterpret_cast<B_PLUS_TREE_LEAF_PARENT_TYPE *> (page->GetData());
 
   assert(parent);
   MappingType item = GetItem(GetSize() - 1);
   IncreaseSize(-1);
-  int index = parent->ValueIndex(GetPageId());
-  parent->InsertNodeAfter(GetPageId(), GetItem(GetSize() - 1).first, GetPageId());
-  parent->Remove(index);
+  int index = parent->ValueIndex(recipient->GetPageId());
+  parent->SetKeyAt(index, KeyAt(GetSize() - 1));
+  for (int i = recipient->GetSize(); i >= 1; i--) {
+    recipient->array[i].first = recipient->array[i - 1].first;
+    recipient->array[i].second = recipient->array[i - 1].second;
+  }
+  recipient->array[0].first = item.first;
+  recipient->array[0].second = item.second;
+  recipient->IncreaseSize(1);
 
-  recipient->CopyFirstFrom(item, parentIndex, buffer_pool_manager);
+//  parent->InsertNodeAfter(GetPageId(), GetItem(GetSize() - 1).first, GetPageId());
+//  parent->Remove(index);
+//
+//  recipient->CopyFirstFrom(item, parentIndex, buffer_pool_manager);
+  buffer_pool_manager->UnpinPage(GetParentPageId(), true);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
