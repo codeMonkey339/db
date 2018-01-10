@@ -39,6 +39,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
   auto leaf = GetLeafPage(key);
   result.resize(1);
   auto ret = leaf->Lookup(key, result[0], comparator_);
+  buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
   return ret;
 }
 
@@ -410,6 +411,7 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
   auto leaf = GetLeafPage(key);
+  buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
   return INDEXITERATOR_TYPE(leaf->GetPageId(), leaf->KeyIndex(key, comparator_), *buffer_pool_manager_);
 }
 
@@ -454,18 +456,14 @@ void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {
 INDEX_TEMPLATE_ARGUMENTS
 std::string BPLUSTREE_TYPE::ToString(bool verbose) {
   if (IsEmpty()) { return "Empty tree"; }
-  BPlusTreePage *r = GetPage(root_page_id_);
-  if (r->IsLeafPage()) {
-    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(r);
-    return leaf->ToString(verbose);
-  }
 
   std::string result;
-  std::vector<BPlusTreePage *> v{r};
+  std::vector<page_id_t > v{root_page_id_};
   while (!v.empty()) {
-    std::vector<BPlusTreePage *> next;
-    for (auto item : v) {
+    std::vector<page_id_t > next;
+    for (auto page_id : v) {
       result += "\n";
+      BPlusTreePage* item = GetPage(page_id);
       if (item->IsLeafPage()) {
         auto leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(item);
         result += leaf->ToString(verbose);
@@ -474,7 +472,7 @@ std::string BPLUSTREE_TYPE::ToString(bool verbose) {
         result += inner->ToString(verbose);
         for (int i = 0; i < inner->GetSize(); i++) {
           page_id_t page = inner->ValueAt(i);
-          next.push_back(GetInternalPage(page));
+          next.push_back((page));
         }
       }
       buffer_pool_manager_->UnpinPage(item->GetPageId(), false);

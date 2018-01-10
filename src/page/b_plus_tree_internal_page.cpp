@@ -140,6 +140,7 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
     const ValueType &old_value, const KeyType &new_key,
     const ValueType &new_value) {
+  assert(GetSize() <= GetMaxSize());
   auto ret = ValueIndex(old_value);
   assert(ret != -1);
   for (int i = GetSize(); i > ret + 1; i--) {
@@ -164,10 +165,26 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
     BufferPoolManager *buffer_pool_manager) {
   //if there are odd keys, move ceiling  size / 2 keys to recipient
   //the key on index zero in the recipient is not use and should be push upward
-  int len = (GetSize() + 1) / 2;//ceiling for odd
-  for (int i = GetSize() - len, j = 0; i < GetSize(); i++, j++) {
+  //the moved half's parent id should be updated
+  assert(GetSize() == GetMaxSize() + 1);
+  assert(recipient != nullptr);
+  int start = GetMaxSize() / 2;
+  int length = GetSize();
+  for (int i = start, j = 0; i < length; i++, j++) {
     recipient->array[j].first = array[i].first;
     recipient->array[j].second = array[i].second;
+  }
+  SetSize(start);
+  recipient->IncreaseSize(length - start);
+
+  //update recipient's parent id
+  for (int i = 0; i < recipient->GetSize(); i++) {
+    page_id_t page_id = recipient->ValueAt(i);
+    auto page = buffer_pool_manager->FetchPage(page_id);
+    assert(page);
+    BPlusTreePage *bp = reinterpret_cast<BPlusTreePage *>(page);
+    bp->SetParentPageId(recipient->GetPageId());
+    buffer_pool_manager->UnpinPage(page_id, true);
   }
 }
 
