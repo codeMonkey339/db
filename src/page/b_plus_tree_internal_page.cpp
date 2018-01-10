@@ -142,13 +142,14 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
     const ValueType &new_value) {
   auto ret = ValueIndex(old_value);
   assert(ret != -1);
-  for (int i = GetSize(); i - 1 > ret; i--) {
+  for (int i = GetSize(); i > ret + 1; i--) {
     array[i].first = array[i - 1].first;
     array[i].second = array[i - 1].second;
   }
   array[ret + 1].first = new_key;
   array[ret + 1].second = new_value;
-  return 0;
+  IncreaseSize(1);
+  return GetSize();
 }
 
 /*****************************************************************************

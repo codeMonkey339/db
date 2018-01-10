@@ -147,15 +147,15 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
 
   //copy
   int length = GetMaxSize();
-  int count = (length + 1) / 2;
-  for (int i = length - count, j = 0; i < length; i++, j++) {
+  int count = length / 2;
+  for (int i = count, j = 0; i < GetSize(); i++, j++) {
     recipient->array[j].first = array[i].first;
     recipient->array[j].second = array[i].second;
   }
 
   //maintain size:
-  SetSize(length - count);
-  recipient->SetSize(count);
+  SetSize(count);
+  recipient->SetSize(length + 1 - count);
 }
 
 INDEX_TEMPLATE_ARGUMENTS

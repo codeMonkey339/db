@@ -494,6 +494,8 @@ void BPLUSTREE_TYPE::InsertFromFile(const std::string &file_name,
                                     Transaction *transaction) {
   int64_t key;
   std::ifstream input(file_name);
+
+//  int count = 0;
   while (input) {
     input >> key;
 
@@ -501,6 +503,7 @@ void BPLUSTREE_TYPE::InsertFromFile(const std::string &file_name,
     index_key.SetFromInteger(key);
     RID rid(key);
     Insert(index_key, rid, transaction);
+//    std::cout << "cnt: " << ++count << " " << ToString(true) << std::endl;
   }
 }
 /*
