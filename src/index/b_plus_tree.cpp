@@ -359,12 +359,21 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
  * INDEX ITERATOR
  *****************************************************************************/
 /*
- * Input parameter is void, find the leaftmost leaf page first, then construct
+ * Input parameter is void, find the leftmost leaf page first, then construct
  * index iterator
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
+  page_id_t page_id = root_page_id_;
+  BPlusTreePage *page = GetPage(page_id);
+  while (!page->IsLeafPage()) {
+    BPInternalPage *ip = reinterpret_cast<BPInternalPage *>(page);
+    page_id = ip->ValueAt(0);
+    page = GetPage(page_id);
+  }
+  return INDEXITERATOR_TYPE(page->GetPageId(), 0, *buffer_pool_manager_);
+}
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key
@@ -373,7 +382,8 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() { return INDEXITERATOR_TYPE(); }
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
-  return INDEXITERATOR_TYPE();
+  auto leaf = GetLeafPage(key);
+  return INDEXITERATOR_TYPE(leaf->GetPageId(), leaf->KeyIndex(key, comparator_), *buffer_pool_manager_);
 }
 
 /*****************************************************************************
