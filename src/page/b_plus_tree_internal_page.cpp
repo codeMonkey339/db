@@ -88,7 +88,7 @@ B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
   int e = GetSize();
   while (b < e) {
     int mid = b + (e - b) / 2;
-    if (comparator(array[mid].first, key)) {
+    if (comparator(array[mid].first, key) == -1) {
       b = mid + 1;
     } else {
       e = mid;
@@ -203,7 +203,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   BPlusTreeInternalPage
       *parent = reinterpret_cast<BPlusTreeInternalPage *>(buffer_pool_manager->FetchPage(GetParentPageId()));
   KeyType keyType = parent->KeyAt(index_in_parent);
-  if (comparator(firstKey(), recipient->firstKey())) {
+  if (comparator(firstKey(), recipient->firstKey()) == -1) {
     for (int i = len - 1; i >= GetSize(); i--) {
       recipient->array[i].first = recipient->array[i - GetSize()].first;
       recipient->array[i].second = recipient->array[i - GetSize()].second;

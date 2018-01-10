@@ -55,7 +55,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(
   int e = len;
   while (b < e) {
     int mid = b + (e - b) / 2;
-    if (comparator(array[mid].first, key)) {
+    if (comparator(array[mid].first, key) == -1) {
       b = mid + 1;
     } else {
       e = mid;
@@ -103,7 +103,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
   assert(GetSize() <= GetMaxSize());
   int i = GetSize() - 1;
   for (; i >= 0; i--) {
-    if (comparator(key, array[i].first)) {
+    if (comparator(key, array[i].first) == -1) {
       array[i + 1].first = array[i].first;
       array[i + 1].second = array[i].second;
     } else {
@@ -204,7 +204,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
                                            int, BufferPoolManager * ,const KeyComparator& comparator) {
-  if(comparator(recipient->array[0].first , array[0].first)){
+  if(comparator(recipient->array[0].first , array[0].first) == -1){
     for(int i = 0; i < GetSize(); i++){
       recipient->array[recipient->GetSize() + i].first = array[i].first;
       recipient->array[recipient->GetSize() + i].second = array[i].second;

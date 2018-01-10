@@ -446,10 +446,36 @@ void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {
 
 /*
  * This method is used for debug only
- * print out whole b+tree sturcture, rank by rank
+ * print out whole b+tree structure, rank by rank
  */
 INDEX_TEMPLATE_ARGUMENTS
-std::string BPLUSTREE_TYPE::ToString(bool verbose) { return "Empty tree"; }
+std::string BPLUSTREE_TYPE::ToString(bool verbose) {
+  BPlusTreePage *r = GetPage(root_page_id_);
+  if (r->IsLeafPage()) {
+    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(r);
+    return leaf->ToString(verbose);
+  }
+
+  std::string result;
+  std::vector<BPlusTreePage *> v{r};
+  while (!v.empty()) {
+    std::vector<BPlusTreePage *> next;
+    for (auto item : v) {
+      result += "\n";
+      if (item->IsLeafPage()) {
+        auto leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(item);
+
+        result += leaf->ToString(verbose);
+      } else {
+        auto inner = reinterpret_cast<BPInternalPage *>(item);
+        result += inner->ToString(verbose);
+      }
+    }
+    swap(v, next);
+  }
+
+  return result;
+}
 
 /*
  * This method is used for test only
