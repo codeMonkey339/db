@@ -15,10 +15,10 @@
  * | PageType (4) | lsn(4) | CurrentSize (4) | MaxSize (4) | ParentPageId (4) |
  *  ---------------------------------------------------------------------
  *  ------------------------------
- * | PageId (4) | NextPageId (4)
+ * | PageId (4) | NextPageId (4) | PreviousPageId (4)
  *  ------------------------------
  *
- *  there is lsn in base class. so this should be 28bytes.
+ *  there is lsn in base class. so this should be 32bytes.
  */
 #pragma once
 #include <utility>
@@ -38,7 +38,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID);
   // helper methods
   page_id_t GetNextPageId() const;
+  page_id_t GetPreviousPageId() const;
   void SetNextPageId(page_id_t next_page_id);
+  void SetPreviousPageId(page_id_t prev_page_id);
   KeyType KeyAt(int index) const;
   int KeyIndex(const KeyType &key, const KeyComparator &comparator) const;
   const MappingType &GetItem(int index);
@@ -81,6 +83,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
     return cmp(k1, k2) == 0;
   }
   page_id_t next_page_id_;
+  page_id_t prev_page_id_;
   MappingType array[0];
 
   bool isFull() {

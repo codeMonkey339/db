@@ -344,7 +344,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(
   BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
   int index = parent->ValueIndex(recipient->GetPageId());
   assert(index != -1);
-  assert(index == parent_index);
+//  assert(index == parent_index);
   recipient->SetKeyAt(1, parent->KeyAt(index));
   parent->SetKeyAt(index, recipient->KeyAt(0));
 

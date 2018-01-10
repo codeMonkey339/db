@@ -27,7 +27,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id) {
   SetPageId(page_id);
   SetParentPageId(parent_id);
   SetNextPageId(INVALID_PAGE_ID);
-  assert(sizeof(BPlusTreeLeafPage) == 28);
+  SetPreviousPageId(INVALID_PAGE_ID);
+  assert(sizeof(BPlusTreeLeafPage) == 32);
   int size =
       (PAGE_SIZE - sizeof(BPlusTreeLeafPage)) / sizeof(MappingType) - 1;//leave a always available slot for insertion
   assert(size >= 2);
@@ -42,10 +43,17 @@ INDEX_TEMPLATE_ARGUMENTS
 page_id_t B_PLUS_TREE_LEAF_PAGE_TYPE::GetNextPageId() const {
   return next_page_id_;
 }
+INDEX_TEMPLATE_ARGUMENTS
+page_id_t B_PLUS_TREE_LEAF_PAGE_TYPE::GetPreviousPageId() const {
+  return prev_page_id_;
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) { next_page_id_ = next_page_id; }
-
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetPreviousPageId(page_id_t prev_page_id) {
+  prev_page_id_ = prev_page_id;
+}
 /**
  * Helper method to find the first index i so that array[i].first >= key
  * NOTE: This method is only used when generating index iterator
@@ -141,9 +149,10 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
     __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
   assert(recipient != nullptr);
   assert(GetSize() == GetMaxSize() + 1);
-  //maintain the single link list
-  recipient->next_page_id_ = next_page_id_;
+  //maintain the double link list
+  recipient->SetNextPageId(GetNextPageId());
   next_page_id_ = recipient->GetPageId();
+  recipient->SetPreviousPageId(GetPageId());
 
   //copy
   int length = GetMaxSize();
@@ -215,7 +224,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
-                                           int, BufferPoolManager *, const KeyComparator &comparator) {
+                                           int, BufferPoolManager *bufferPoolManager, const KeyComparator &comparator) {
   assert(recipient->GetParentPageId() == GetParentPageId());
   assert(recipient->GetParentPageId() != INVALID_PAGE_ID);
   if (comparator(recipient->array[0].first, array[0].first) == -1) {
@@ -226,6 +235,14 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
     recipient->IncreaseSize(GetSize());
     IncreaseSize(-1 * GetSize());
     recipient->SetNextPageId(GetNextPageId());
+
+    if (GetNextPageId() != INVALID_PAGE_ID) {
+      Page *page = bufferPoolManager->FetchPage(GetNextPageId());
+      assert(page);
+      auto link = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
+      link->SetPreviousPageId(recipient->GetPageId());
+      bufferPoolManager->UnpinPage(GetNextPageId(), true);
+    }
   } else {
     for (int i = GetSize() + recipient->GetSize() - 1; i >= GetSize(); i--) {
       recipient->array[i].first = recipient->array[i - GetSize()].first;
@@ -237,6 +254,15 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
     }
     recipient->IncreaseSize(GetSize());
     IncreaseSize(-1 * GetSize());
+
+    recipient->SetPreviousPageId(GetPreviousPageId());
+    if (GetPreviousPageId() != INVALID_PAGE_ID) {
+      Page *page = bufferPoolManager->FetchPage(GetPreviousPageId());
+      assert(page);
+      auto link = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
+      link->SetNextPageId(recipient->GetPageId());
+      bufferPoolManager->UnpinPage(GetPreviousPageId(), true);
+    }
   }
 }
 INDEX_TEMPLATE_ARGUMENTS

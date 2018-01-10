@@ -290,7 +290,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     //merge with left sibling node
     Coalesce(leftSibling, node, parent, 0, transaction);
     buffer_pool_manager_->UnpinPage(leftSiblingPageId, true);
-    if(rightSibling){
+    if (rightSibling) {
       buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
     }
   } else {
@@ -507,7 +507,7 @@ std::string BPLUSTREE_TYPE::ToString(bool verbose) {
       result += " ref: " + std::to_string(cnt);
       buffer_pool_manager_->UnpinPage(item->GetPageId(), false);
       if (cnt != 2) {
-        caution += std::to_string(page_id) + " ";
+        caution += std::to_string(page_id) + " cnt:" + std::to_string(cnt);
       }
 
       buffer_pool_manager_->UnpinPage(item->GetPageId(), false);
@@ -553,6 +553,7 @@ void BPLUSTREE_TYPE::RemoveFromFile(const std::string &file_name,
     KeyType index_key;
     index_key.SetFromInteger(key);
     Remove(index_key, transaction);
+    std::cout << "remove: " << key << " " << ToString(true) << std::endl;
   }
 }
 

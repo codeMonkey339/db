@@ -101,6 +101,22 @@ TEST(BptTreeTest, UnitTest) {
         break;
       case 't':std::cout << tree.ToString(true) << std::endl;
         break;
+      case 'j':std::cin >> key;
+        {
+          std::vector<int> v;
+          for (int i = 1; i <= key; i++) {
+            v.push_back(i);
+          }
+          std::random_shuffle(v.begin(), v.end());
+          for (auto item : v) {
+            std::cout << item  << std::endl;
+            index_key.SetFromInteger(item);
+            tree.Remove(index_key, transaction);
+            tree.ToString(false);
+          }
+        }
+
+        break;
       default:std::cin.ignore(256, '\n');
         std::cout << usageMessage();
         break;
