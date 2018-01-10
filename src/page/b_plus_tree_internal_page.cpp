@@ -232,13 +232,15 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     BPlusTreeInternalPage *recipient, int index_in_parent,
     BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator) {
+  assert(recipient->GetParentPageId() == GetParentPageId());
+  assert(recipient->GetParentPageId() != INVALID_PAGE_ID);
+
   int len = GetSize() + recipient->GetSize();
-  BPlusTreeInternalPage
-      *parent =
-      GetParentPageId() == INVALID_PAGE_ID ? nullptr :
-      reinterpret_cast<BPlusTreeInternalPage *>(buffer_pool_manager->FetchPage(GetParentPageId()));
+  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
   assert(parent);
   KeyType keyType = parent->KeyAt(index_in_parent);
+
   if (comparator(firstKey(), recipient->firstKey()) == -1) {
     for (int i = len - 1; i >= GetSize(); i--) {
       recipient->array[i].first = recipient->array[i - GetSize()].first;
@@ -257,6 +259,16 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     recipient->array[recipient->GetSize()].first = keyType;
   }
   recipient->IncreaseSize(GetSize());
+
+  for(int i = 0; i < GetSize(); i++){
+    Page* tmp = buffer_pool_manager->FetchPage(array[i].second);
+    assert(tmp);
+    BPlusTreePage* bp = reinterpret_cast<BPlusTreePage*>(tmp->GetData());
+    bp->SetParentPageId(recipient->GetPageId());
+    buffer_pool_manager->UnpinPage(array[i].second, true);
+  }
+
+  buffer_pool_manager->UnpinPage(GetParentPageId(), false);
 }
 
 INDEX_TEMPLATE_ARGUMENTS

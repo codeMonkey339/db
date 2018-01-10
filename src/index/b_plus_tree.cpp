@@ -240,41 +240,46 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     assert(node->IsRootPage());
     return AdjustRoot(node);
   }
-  
+
   BPInternalPage *parent = GetInternalPage(btp->GetParentPageId());
   auto idx = parent->ValueIndex(btp->GetPageId());
 
   decltype(node) leftSibling = nullptr;
   decltype(node) rightSibling = nullptr;
+  int leftSiblingPageId = INVALID_PAGE_ID;
+  int rightSiblingPageId = INVALID_PAGE_ID;
+
   //look ahead
   if (idx - 1 >= 0) {
     //check size of the page
-    int leftSiblingPageId = parent->ValueAt(idx - 1);
+    leftSiblingPageId = parent->ValueAt(idx - 1);
     leftSibling = reinterpret_cast<decltype(node)>(GetPage(leftSiblingPageId));
+    assert(leftSibling);
     if (leftSibling->GetSize() > leftSibling->GetMinSize()) {
       //redistribute with this page
       //move the last element of left sibling to the first place of current node
       //the parent node should be updated as well
 
       Redistribute(leftSibling, node, 1);
-      buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
+      buffer_pool_manager_->UnpinPage(leftSiblingPageId, true);
+      buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+
       return false;
-    } else {
-      buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
     }
   }
 
   if (idx + 1 < parent->GetSize()) {
     //check size of the page
-    int rightSiblingPageId = parent->ValueAt(idx + 1);
+    rightSiblingPageId = parent->ValueAt(idx + 1);
     rightSibling = reinterpret_cast<decltype(node)>(GetPage(rightSiblingPageId));
+    assert(rightSibling);
     if (rightSibling->GetSize() > rightSibling->GetMinSize()) {
       //redistribute with this page
       Redistribute(rightSibling, node, 0);
-      buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
+      buffer_pool_manager_->UnpinPage(rightSiblingPageId, true);
+      buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+
       return false;
-    } else {
-      buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
     }
   }
 
@@ -284,10 +289,16 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   if (leftSibling) {
     //merge with left sibling node
     Coalesce(leftSibling, node, parent, 0, transaction);
+    buffer_pool_manager_->UnpinPage(leftSiblingPageId, true);
+    if(rightSibling){
+      buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
+    }
   } else {
     //merge with right sibling node
     Coalesce(rightSibling, node, parent, 1, transaction);
+    buffer_pool_manager_->UnpinPage(rightSiblingPageId, true);
   }
+
   auto del = CoalesceOrRedistribute(parent, transaction);
   buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
   if (del) {
@@ -349,19 +360,19 @@ INDEX_TEMPLATE_ARGUMENTS
 template<typename N>
 void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
   assert(index == 0 || index == 1);//not used as comments said
-  BPInternalPage *parent = GetInternalPage(node->GetParentPageId());
+//  BPInternalPage *parent = GetInternalPage(node->GetParentPageId());
   if (index == 0) {
     neighbor_node->MoveFirstToEndOf(node, buffer_pool_manager_);
 
-    int parent_index = parent->ValueIndex(neighbor_node->GetPageId());
-    parent->SetKeyAt(parent_index, node->KeyAt(node->GetSize() - 1));
+//    int parent_index = parent->ValueIndex(neighbor_node->GetPageId());
+//    parent->SetKeyAt(parent_index, node->KeyAt(node->GetSize() - 1));
   } else {
     neighbor_node->MoveLastToFrontOf(node, index, buffer_pool_manager_);
 
-    int parent_index = parent->ValueIndex(node->GetPageId());
-    parent->SetKeyAt(parent_index, neighbor_node->KeyAt(neighbor_node->GetSize() - 1));
+//    int parent_index = parent->ValueIndex(node->GetPageId());
+//    parent->SetKeyAt(parent_index, neighbor_node->KeyAt(neighbor_node->GetSize() - 1));
   }
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+//  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
 }
 /*
  * Update root page if necessary
@@ -493,7 +504,7 @@ std::string BPLUSTREE_TYPE::ToString(bool verbose) {
       }
 
       int cnt = buffer_pool_manager_->FetchPage(page_id)->GetPinCount();
-      result += std::to_string(cnt);
+      result += " ref: " + std::to_string(cnt);
       buffer_pool_manager_->UnpinPage(item->GetPageId(), false);
       if (cnt != 2) {
         caution += std::to_string(page_id) + " ";
