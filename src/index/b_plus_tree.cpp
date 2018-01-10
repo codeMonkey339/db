@@ -215,6 +215,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       buffer_pool_manager_->UnpinPage(lp->GetPageId(), true);
       auto deletePage = buffer_pool_manager_->DeletePage(lp->GetPageId());
       assert(deletePage);
+      return;
     }
   }
   buffer_pool_manager_->UnpinPage(lp->GetPageId(), true);
@@ -235,12 +236,12 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   }
   //param node could be a leaf page or a internal page
   BPlusTreePage *btp = node;
-  BPInternalPage *parent = GetInternalPage(btp->GetParentPageId());
-  if (parent == nullptr) {
+  if (btp->GetParentPageId() == INVALID_PAGE_ID) {
     assert(node->IsRootPage());
     return AdjustRoot(node);
   }
-
+  
+  BPInternalPage *parent = GetInternalPage(btp->GetParentPageId());
   auto idx = parent->ValueIndex(btp->GetPageId());
 
   decltype(node) leftSibling = nullptr;
@@ -248,24 +249,32 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   //look ahead
   if (idx - 1 >= 0) {
     //check size of the page
-    leftSibling = reinterpret_cast<decltype(node)>(GetPage(parent->ValueAt(idx - 1)));
+    int leftSiblingPageId = parent->ValueAt(idx - 1);
+    leftSibling = reinterpret_cast<decltype(node)>(GetPage(leftSiblingPageId));
     if (leftSibling->GetSize() > leftSibling->GetMinSize()) {
       //redistribute with this page
       //move the last element of left sibling to the first place of current node
       //the parent node should be updated as well
 
       Redistribute(leftSibling, node, 1);
+      buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
       return false;
+    } else {
+      buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
     }
   }
 
   if (idx + 1 < parent->GetSize()) {
     //check size of the page
-    rightSibling = reinterpret_cast<decltype(node)>(GetPage(parent->ValueAt(idx + 1)));
+    int rightSiblingPageId = parent->ValueAt(idx + 1);
+    rightSibling = reinterpret_cast<decltype(node)>(GetPage(rightSiblingPageId));
     if (rightSibling->GetSize() > rightSibling->GetMinSize()) {
       //redistribute with this page
       Redistribute(rightSibling, node, 0);
+      buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
       return false;
+    } else {
+      buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
     }
   }
 
@@ -279,8 +288,11 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     //merge with right sibling node
     Coalesce(rightSibling, node, parent, 1, transaction);
   }
-  if (CoalesceOrRedistribute(parent, transaction)) {
-    buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+  auto del = CoalesceOrRedistribute(parent, transaction);
+  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+  if (del) {
+    auto ret = buffer_pool_manager_->DeletePage(parent->GetPageId());
+    assert(ret);
   }
   return true;
 }
@@ -371,13 +383,15 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
     return true;
   }
 
-  if (!old_root_node->IsLeafPage() && old_root_node->GetSize() == 0) {
+  if (!old_root_node->IsLeafPage() && old_root_node->GetSize() == 1) {
     //case 1
     BPInternalPage *ip = reinterpret_cast<BPInternalPage *>(old_root_node);
-    BPlusTreePage *newRoot = GetPage(ip->ValueAt(0));
+    page_id_t page_id = ip->ValueAt(0);
+    BPlusTreePage *newRoot = GetPage(page_id);
     root_page_id_ = newRoot->GetPageId();
     newRoot->SetParentPageId(INVALID_PAGE_ID);
     UpdateRootPageId(false);
+    buffer_pool_manager_->UnpinPage(page_id, true);
     return true;
   }
   return false;
@@ -458,12 +472,14 @@ std::string BPLUSTREE_TYPE::ToString(bool verbose) {
   if (IsEmpty()) { return "Empty tree"; }
 
   std::string result;
-  std::vector<page_id_t > v{root_page_id_};
+  std::vector<page_id_t> v{root_page_id_};
+
+  std::string caution;
   while (!v.empty()) {
-    std::vector<page_id_t > next;
+    std::vector<page_id_t> next;
     for (auto page_id : v) {
       result += "\n";
-      BPlusTreePage* item = GetPage(page_id);
+      BPlusTreePage *item = GetPage(page_id);
       if (item->IsLeafPage()) {
         auto leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(item);
         result += leaf->ToString(verbose);
@@ -475,12 +491,20 @@ std::string BPLUSTREE_TYPE::ToString(bool verbose) {
           next.push_back((page));
         }
       }
+
+      int cnt = buffer_pool_manager_->FetchPage(page_id)->GetPinCount();
+      result += std::to_string(cnt);
+      buffer_pool_manager_->UnpinPage(item->GetPageId(), false);
+      if (cnt != 2) {
+        caution += std::to_string(page_id) + " ";
+      }
+
       buffer_pool_manager_->UnpinPage(item->GetPageId(), false);
     }
     swap(v, next);
   }
-
-  return result;
+  assert(caution.empty());
+  return result + caution;
 }
 
 /*

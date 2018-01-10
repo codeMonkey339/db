@@ -274,6 +274,8 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
     BPlusTreeInternalPage *recipient,
     BufferPoolManager *buffer_pool_manager) {
+  assert(recipient->GetParentPageId() == GetParentPageId());
+  assert(recipient->GetParentPageId() != INVALID_PAGE_ID);
   //copy record
   recipient->array[recipient->GetSize()].first = array[0].first;
   recipient->array[recipient->GetSize()].second = array[0].second;
@@ -284,6 +286,18 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
     array[i].second = array[i + 1].second;
   }
   IncreaseSize(-1);
+
+  //adjust their parent
+  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+  assert(page);
+
+  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  int index = parent->ValueIndex(GetPageId());
+  assert(index != -1);
+  recipient->SetKeyAt(recipient->GetSize() - 1, parent->KeyAt(index));
+  parent->SetKeyAt(index, KeyAt(0));
+
+  buffer_pool_manager->UnpinPage(GetParentPageId(), true);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -298,6 +312,8 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(
     BPlusTreeInternalPage *recipient, int parent_index,
     BufferPoolManager *buffer_pool_manager) {
+  assert(recipient->GetParentPageId() == GetParentPageId());
+  assert(recipient->GetParentPageId() != INVALID_PAGE_ID);
   for (int i = recipient->GetSize(); i >= 1; i--) {
     recipient->array[i].first = recipient->array[i - 1].first;
     recipient->array[i].second = recipient->array[i - 1].second;
@@ -308,6 +324,19 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(
 
   recipient->IncreaseSize(1);
   IncreaseSize(-1);
+
+  //adjust parent
+  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+  assert(page);
+
+  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  int index = parent->ValueIndex(recipient->GetPageId());
+  assert(index != -1);
+  assert(index == parent_index);
+  recipient->SetKeyAt(1, parent->KeyAt(index));
+  parent->SetKeyAt(index, recipient->KeyAt(0));
+
+  buffer_pool_manager->UnpinPage(GetParentPageId(), true);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
