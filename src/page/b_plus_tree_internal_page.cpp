@@ -236,8 +236,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   assert(recipient->GetParentPageId() != INVALID_PAGE_ID);
 
   int len = GetSize() + recipient->GetSize();
-  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
-  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
+//  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+//  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  auto parent = GetInternalPagePtr(GetParentPageId(), *buffer_pool_manager);
   assert(parent);
   KeyType keyType = parent->KeyAt(index_in_parent);
 
@@ -261,14 +262,15 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   recipient->IncreaseSize(GetSize());
 
   for (int i = 0; i < GetSize(); i++) {
-    Page *tmp = buffer_pool_manager->FetchPage(array[i].second);
-    assert(tmp);
-    BPlusTreePage *bp = reinterpret_cast<BPlusTreePage *>(tmp->GetData());
+//    Page *tmp = buffer_pool_manager->FetchPage(array[i].second);
+//    assert(tmp);
+//    BPlusTreePage *bp = reinterpret_cast<BPlusTreePage *>(tmp->GetData());
+    auto bp = GetPagePtr<BPlusTreePage>(array[i].second, *buffer_pool_manager);
     bp->SetParentPageId(recipient->GetPageId());
-    buffer_pool_manager->UnpinPage(array[i].second, true);
+//    buffer_pool_manager->UnpinPage(array[i].second, true);
   }
 
-  buffer_pool_manager->UnpinPage(GetParentPageId(), false);
+//  buffer_pool_manager->UnpinPage(GetParentPageId(), false);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -300,23 +302,15 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
   IncreaseSize(-1);
 
   //adjust their parent
-  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
-  assert(page);
-
-  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  auto parent = GetInternalPagePtr(GetParentPageId(), *buffer_pool_manager);
   int index = parent->ValueIndex(GetPageId());
   assert(index != -1);
   recipient->SetKeyAt(recipient->GetSize() - 1, parent->KeyAt(index));
   parent->SetKeyAt(index, KeyAt(0));
 
-  buffer_pool_manager->UnpinPage(GetParentPageId(), true);
-
   page_id_t newNodePageId = recipient->ValueAt(recipient->GetSize() - 1);
-  page = buffer_pool_manager->FetchPage(newNodePageId);
-  assert(page);
-  BPlusTreeInternalPage *newNode = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  auto newNode = GetInternalPagePtr(newNodePageId, *buffer_pool_manager);
   newNode->SetParentPageId(recipient->GetPageId());
-  buffer_pool_manager->UnpinPage(newNodePageId, true);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -345,24 +339,15 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(
   IncreaseSize(-1);
 
   //adjust parent
-  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
-  assert(page);
-
-  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  auto parent = GetInternalPagePtr(GetParentPageId(), *buffer_pool_manager);
   int index = parent->ValueIndex(recipient->GetPageId());
   assert(index != -1);
-//  assert(index == parent_index);
   recipient->SetKeyAt(1, parent->KeyAt(index));
   parent->SetKeyAt(index, recipient->KeyAt(0));
 
-  buffer_pool_manager->UnpinPage(GetParentPageId(), true);
-
   page_id_t newNodePageId = recipient->ValueAt(0);
-  page = buffer_pool_manager->FetchPage(newNodePageId);
-  assert(page);
-  BPlusTreeInternalPage *newNode = reinterpret_cast<BPlusTreeInternalPage *>(page);
+  auto newNode = GetInternalPagePtr(newNodePageId, *buffer_pool_manager);
   newNode->SetParentPageId(recipient->GetPageId());
-  buffer_pool_manager->UnpinPage(newNodePageId, true);
 }
 
 INDEX_TEMPLATE_ARGUMENTS

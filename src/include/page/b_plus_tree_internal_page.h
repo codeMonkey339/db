@@ -56,12 +56,6 @@ class BPlusTreeInternalPage : public BPlusTreePage {
                          int parent_index,
                          BufferPoolManager *buffer_pool_manager);
 
-  bool shouldSplit() const {
-    return GetSize() - 1 > GetMaxSize() - 1;
-  }
-  bool shouldCoalesce() const {
-    return GetSize() - 1 < GetMinSize();
-  }
   // DEUBG and PRINT
   std::string ToString(bool verbose) const;
   void QueueUpChildren(std::queue<BPlusTreePage *> *queue,
@@ -86,6 +80,24 @@ class BPlusTreeInternalPage : public BPlusTreePage {
                     BufferPoolManager *buffer_pool_manager);
   void CopyFirstFrom(const MappingType &pair, int parent_index,
                      BufferPoolManager *buffer_pool_manager);
+
+  template<typename T>
+  std::shared_ptr<T> GetPagePtr(page_id_t page_id,
+                                BufferPoolManager &bufferPoolManager) {
+    Page *page = bufferPoolManager.FetchPage(page_id);
+    assert(page);
+    auto ptr = reinterpret_cast<T *>(page->GetData());
+//    assert(!ptr->IsLeafPage());
+    return std::shared_ptr<T>(ptr,
+                              [&](T *param) {
+                                bufferPoolManager.UnpinPage(param->GetPageId(), true);
+                              });
+  }
+  std::shared_ptr<B_PLUS_TREE_INTERNAL_PAGE_TYPE > GetInternalPagePtr(page_id_t page_id,
+                                                                      BufferPoolManager &bufferPoolManager) {
+    return GetPagePtr<B_PLUS_TREE_INTERNAL_PAGE_TYPE >(page_id, bufferPoolManager);
+  }
+
   MappingType array[0];
 };
 
