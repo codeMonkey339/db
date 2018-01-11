@@ -11,13 +11,13 @@ So I will do the project from this code base. If you're searching for the base c
 
 --------------
 * project 1 :
-    - There's a similar question on leetcode about lru cache. I can still remember the first time I wrote that, haha.
-
+    - There's a very similar question on leetcode about lru cache. I can still recall the circumstance the first time I wrote that, haha.
+    - The bucket size of extendible hashing is chosen arbitrarily other than computed. It confused me for some time.
 * project 2 :
     - The data structure here is double link between child and parent page via page id. It's different from many online resource
-introducing B+Tree with single link. It took me a while to fix this in redistributing and coalescing of internal nodes.
+introducing B+Tree with single link. It took me quite a while to fix this in redistributing and coalescing of internal nodes.
     - It's clumsy to handle next page link if two leaf page shares no same parent. A double link version is better to my thought.
-
+    - For the ease of implementation, the size of both leaf and internal nodes are picked as greatest even value.
 --------------
 
 # 15-445 Database Systems
