@@ -236,8 +236,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   assert(recipient->GetParentPageId() != INVALID_PAGE_ID);
 
   int len = GetSize() + recipient->GetSize();
-//  Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
-//  BPlusTreeInternalPage *parent = reinterpret_cast<BPlusTreeInternalPage *>(page);
   auto parent = GetInternalPagePtr(GetParentPageId(), *buffer_pool_manager);
   assert(parent);
   KeyType keyType = parent->KeyAt(index_in_parent);
@@ -262,15 +260,10 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   recipient->IncreaseSize(GetSize());
 
   for (int i = 0; i < GetSize(); i++) {
-//    Page *tmp = buffer_pool_manager->FetchPage(array[i].second);
-//    assert(tmp);
-//    BPlusTreePage *bp = reinterpret_cast<BPlusTreePage *>(tmp->GetData());
     auto bp = GetPagePtr<BPlusTreePage>(array[i].second, *buffer_pool_manager);
     bp->SetParentPageId(recipient->GetPageId());
-//    buffer_pool_manager->UnpinPage(array[i].second, true);
   }
 
-//  buffer_pool_manager->UnpinPage(GetParentPageId(), false);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
