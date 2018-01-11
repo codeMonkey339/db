@@ -278,7 +278,9 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
       Redistribute(rightSibling, node, 0);
       buffer_pool_manager_->UnpinPage(rightSiblingPageId, true);
       buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-
+      if(leftSibling){
+        buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
+      }
       return false;
     }
   }
