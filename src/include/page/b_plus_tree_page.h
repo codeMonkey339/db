@@ -68,5 +68,15 @@ class BPlusTreePage {
   page_id_t parent_page_id_;
   page_id_t page_id_;
 };
-
+template<typename T>
+std::shared_ptr<T> GetPageSmartPtr(page_id_t page_id,
+                              BufferPoolManager &bufferPoolManager) {
+  Page *page = bufferPoolManager.FetchPage(page_id);
+  assert(page);
+  auto ptr = reinterpret_cast<T *>(page->GetData());
+  return std::shared_ptr<T>(ptr,
+                            [&](T *param) {
+                              bufferPoolManager.UnpinPage(param->GetPageId(), true);
+                            });
+}
 } // namespace cmudb

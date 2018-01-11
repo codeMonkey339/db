@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "page/b_plus_tree_page.h"
+#include "page/b_plus_tree_internal_page.h"
 
 namespace cmudb {
 #define B_PLUS_TREE_LEAF_PAGE_TYPE                                             \
@@ -67,12 +68,6 @@ class BPlusTreeLeafPage : public BPlusTreePage {
     assert(GetSize() != 0);
     return array[0].first;
   }
-  bool shouldSplit() const {
-    return GetSize() > GetMaxSize();
-  }
-  bool shouldCoalesce() const {
-    return GetSize() < GetMinSize();
-  }
  private:
   void CopyHalfFrom(MappingType *items, int size);
   void CopyAllFrom(MappingType *items, int size);
@@ -88,6 +83,15 @@ class BPlusTreeLeafPage : public BPlusTreePage {
 
   bool isFull() {
     return GetSize() == GetMaxSize();
+  }
+
+  std::shared_ptr<B_PLUS_TREE_LEAF_PAGE_TYPE > GetLeafPageSmartPtr(page_id_t page_id,
+                                                                   BufferPoolManager &bufferPoolManager) {
+    return GetPageSmartPtr<B_PLUS_TREE_LEAF_PAGE_TYPE >(page_id, bufferPoolManager);
+  }
+  std::shared_ptr<B_PLUS_TREE_LEAF_PARENT_TYPE > GetLeafPageParentSmartPtr(page_id_t page_id,
+                                                                   BufferPoolManager &bufferPoolManager) {
+    return GetPageSmartPtr<B_PLUS_TREE_LEAF_PARENT_TYPE >(page_id, bufferPoolManager);
   }
 };
 } // namespace cmudb

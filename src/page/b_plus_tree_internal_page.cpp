@@ -260,7 +260,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   recipient->IncreaseSize(GetSize());
 
   for (int i = 0; i < GetSize(); i++) {
-    auto bp = GetPagePtr<BPlusTreePage>(array[i].second, *buffer_pool_manager);
+    auto bp = GetPageSmartPtr<BPlusTreePage>(array[i].second, *buffer_pool_manager);
     bp->SetParentPageId(recipient->GetPageId());
   }
 
