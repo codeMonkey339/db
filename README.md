@@ -4,6 +4,21 @@ I'm sure that this version is up to date, as the 4th assignment mentioned the ve
 So I will do the project from this code base. If you're searching for the base code, just go to the link above and clone.
 
 --------------
+- [x] project 1 Buffer Pool Manager
+- [x] project 2 B+Tree
+- [ ] project 3 Concurrent Control
+- [ ] project 4 Logging & Recovery
+
+--------------
+* project 1 :
+    - There's a similar question on leetcode about lru cache. I can still remember the first time I wrote that, haha.
+
+* project 2 :
+    - The data structure here is double link between child and parent page via page id. It's different from many online resource
+introducing B+Tree with single link. It took me a while to fix this in redistributing and coalescing of internal nodes.
+    - It's clumsy to handle next page link if two leaf page shares no same parent. A double link version is better to my thought.
+
+--------------
 
 # 15-445 Database Systems
 # SQLite Project Source Code
