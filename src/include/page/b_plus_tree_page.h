@@ -32,7 +32,7 @@ namespace cmudb {
   template <typename KeyType, typename ValueType, typename KeyComparator>
 
 // define page type enum
-enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE = 1, INTERNAL_PAGE = 2};
+enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE = 1, INTERNAL_PAGE = 2 };
 //int operator|(IndexPageType a, IndexPageType b) {
 //  return static_cast<int>(a) | static_cast<int>(b);
 //}
@@ -70,7 +70,8 @@ class BPlusTreePage {
 };
 template<typename T>
 std::shared_ptr<T> GetPageSmartPtr(page_id_t page_id,
-                              BufferPoolManager &bufferPoolManager) {
+                                   BufferPoolManager &bufferPoolManager) {
+  assert(page_id != INVALID_PAGE_ID);
   Page *page = bufferPoolManager.FetchPage(page_id);
   assert(page);
   auto ptr = reinterpret_cast<T *>(page->GetData());
@@ -79,4 +80,14 @@ std::shared_ptr<T> GetPageSmartPtr(page_id_t page_id,
                               bufferPoolManager.UnpinPage(param->GetPageId(), true);
                             });
 }
+
+template<typename T>
+class BufferPageGuard {
+  T *ptr;
+  BufferPoolManager &bufferPoolManager_;
+ public:
+  BufferPageGuard(BufferPoolManager &bufferPoolManager, T *pointer)
+      : ptr(pointer), bufferPoolManager_(bufferPoolManager) {}
+  ~BufferPageGuard() { bufferPoolManager_.UnpinPage(ptr->GetPageId(), true); }
+};
 } // namespace cmudb

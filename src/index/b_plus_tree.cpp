@@ -158,13 +158,12 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                       BPlusTreePage *new_node,
                                       Transaction *transaction) {
   page_id_t parentPageId = old_node->GetParentPageId();
-  BPInternalPage *ip = nullptr;
   if (parentPageId == INVALID_PAGE_ID) {
     Page *newPage = buffer_pool_manager_->NewPage(parentPageId);
     if (newPage == nullptr) {
       throw std::bad_alloc();
     }
-    ip = reinterpret_cast<BPInternalPage *>(newPage->GetData());
+    auto ip = reinterpret_cast<BPInternalPage *>(newPage->GetData());
     ip->Init(parentPageId, INVALID_PAGE_ID);
     root_page_id_ = parentPageId;
     UpdateRootPageId(false);
@@ -176,19 +175,21 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
     return;
   }
 
-  ip = GetInternalPage(parentPageId);
+//  ip = GetInternalPage(parentPageId);
+  auto ip = GetInternalPageSP(parentPageId);
 
   //insert new kv pair points to new_node after that
   ip->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
 
   if (ip->GetSize() > ip->GetMaxSize()) {
-    BPInternalPage *oldlp = ip;
-    BPInternalPage *newlp = Split(ip);
+    BPInternalPage *oldlp = ip.get();
+    BPInternalPage *newlp = Split(oldlp);
+    BufferPageGuard<BPInternalPage > guard(*buffer_pool_manager_, newlp);
     InsertIntoParent(oldlp, newlp->KeyAt(0), newlp);
 
-    buffer_pool_manager_->UnpinPage(newlp->GetPageId(), true);
+//    buffer_pool_manager_->UnpinPage(newlp->GetPageId(), true);
   }
-  buffer_pool_manager_->UnpinPage(parentPageId, true);
+//  buffer_pool_manager_->UnpinPage(parentPageId, true);
 }
 
 /*****************************************************************************

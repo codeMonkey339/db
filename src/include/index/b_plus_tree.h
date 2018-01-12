@@ -108,6 +108,15 @@ class BPlusTree {
     assert(page != nullptr);
     return reinterpret_cast<BPlusTreePage *>(page->GetData());
   }
+  std::shared_ptr<BPlusTreePage> GetPageSP(page_id_t page_id) {
+    return GetPageSmartPtr<BPlusTreePage>(page_id, *buffer_pool_manager_);
+  }
+  std::shared_ptr<BPInternalPage> GetInternalPageSP(page_id_t page_id) {
+    return GetPageSmartPtr<BPInternalPage>(page_id, *buffer_pool_manager_);
+  }
+//  std::shared_ptr<BPlusTreePage> GetLeafPageSmartPtr(page_id_t page_id) {
+//    return GetPageSmartPtr<BPlusTreePage>(page_id, buffer_pool_manager_);
+//  }
 
   B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(const KeyType &key);
 };
