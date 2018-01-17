@@ -9,7 +9,10 @@
 
 namespace cmudb {
 
-bool LockManager::checkTxn(Transaction *txn) {
+LockManager::LockManager(bool strict_2PL) : strict_2PL_(strict_2PL) {
+};
+
+bool LockManager::isValidToAcquireLock(Transaction *txn) {
   if (txn->GetState() == TransactionState::ABORTED) { return false; }
   if (txn->GetState() == TransactionState::COMMITTED) { return false; }
   if (txn->GetState() == TransactionState::SHRINKING) {
@@ -42,24 +45,24 @@ bool LockManager::checkTxn(Transaction *txn) {
  * @return true if granted, false otherwise
  */
 bool LockManager::LockShared(Transaction *txn, const RID &rid) {
-  if (!checkTxn(txn)) { return false; }
-
+  if (!isValidToAcquireLock(txn)) { return false; }
   assert(txn->GetState() == TransactionState::GROWING);
-  std::unique_lock<std::mutex> guard(mtx);
-  std::shared_ptr<WaitList> ptr;
-  auto exists = hash->Find(rid, ptr);
 
-  if (!exists) {
+  std::unique_lock<std::mutex> guard(mtx);
+
+  if (hash.find(rid) == hash.end()) {
     //create a waitlist and add into hash table
-    ptr = std::make_shared<WaitList>(txn->GetTransactionId(),WaitState::SHARED);
+    auto ptr = std::make_shared<WaitList>(txn->GetTransactionId(), WaitState::SHARED);
     assert(ptr);
-    hash->Insert(rid, ptr);
+//    hash->Insert(rid, ptr);
+    hash[rid] = ptr;
     //grant lock to the txn
     //current txn is the first one asked for lock.
     //so it should have the shared lock
     return true;
   }
 
+  auto ptr = hash[rid];
   assert(ptr);
   assert(ptr->state == WaitState::SHARED || ptr->state == WaitState::EXCLUSIVE);
   //should block?
@@ -85,20 +88,19 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
 }
 
 bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
-  if (!checkTxn(txn)) { return false; }
+  if (!isValidToAcquireLock(txn)) { return false; }
 
   assert(txn->GetState() == TransactionState::GROWING);
   std::unique_lock<std::mutex> guard(mtx);
-  std::shared_ptr<WaitList> ptr;
-  auto exists = hash->Find(rid, ptr);
-
-  if (!exists) {
+  if (hash.find(rid) == hash.end()) {
     //create a waitlist and add into hash table
-    ptr = std::make_shared<WaitList>(txn->GetTransactionId(),WaitState::EXCLUSIVE);
+    auto ptr = std::make_shared<WaitList>(txn->GetTransactionId(), WaitState::EXCLUSIVE);
     assert(ptr);
-    hash->Insert(rid, ptr);
+//    hash->Insert(rid, ptr);
+    hash[rid] = ptr;
     return true;
   }
+  auto ptr = hash[rid];
   assert(ptr);
   assert(ptr->state == WaitState::SHARED || ptr->state == WaitState::EXCLUSIVE);
   //should block anyway
@@ -123,16 +125,16 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
  * @return
  */
 bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
-  if (!checkTxn(txn)) {
+  if (!isValidToAcquireLock(txn)) {
     return false;
   }
   assert(txn->GetState() == TransactionState::GROWING);
   std::unique_lock<std::mutex> guard(mtx);
-  std::shared_ptr<WaitList> ptr;
-  auto exists = hash->Find(rid, ptr);
-  if (!exists) {
+
+  if (hash.find(rid) == hash.end()) {
     return false;
   }
+  auto ptr = hash[rid];
   assert(ptr);
   if (ptr->granted.find(txn->GetTransactionId()) == ptr->granted.end()) {
     return false;
@@ -149,12 +151,11 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
     return false;
   }
   std::unique_lock<std::mutex> guard(mtx);
-  std::shared_ptr<WaitList> ptr;
-  auto exists = hash->Find(rid, ptr);
-  if (!exists) {
+  if (hash.find(rid) == hash.end()) {
     assert(false);
     return false;
   }
+  auto ptr = hash[rid];
   assert(ptr);
   assert(ptr->granted.find(txn->GetTransactionId()) != ptr->granted.end());
   ptr->granted.erase(txn->GetTransactionId());
@@ -163,7 +164,8 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   }
 
   if (ptr->lst.empty()) {
-    hash->Remove(rid);
+//    hash->Remove(rid);
+    hash.erase(rid);
     return true;
   }
 

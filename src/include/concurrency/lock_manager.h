@@ -16,19 +16,38 @@
 
 #include "common/rid.h"
 #include "concurrency/transaction.h"
-#include "hash/extendible_hash.h"
 
 namespace cmudb {
+enum class WaitState { INIT, SHARED, EXCLUSIVE };
+
+class WaitList {
+ public:
+  WaitList(const WaitState &) = delete;
+  WaitList &operator=(const WaitList &) = delete;
+  WaitList(txn_id_t id, WaitState target) : oldest(id), state(target) {
+    granted.insert(id);
+  }
+  WaitList() {}
+  txn_id_t oldest = -1; //oldest txn that holds the lock
+  WaitState state = WaitState::INIT;
+  std::set<txn_id_t> granted;
+
+  class WaitItem {
+   public:
+    WaitItem(const WaitItem &) = delete;
+    WaitItem &operator=(const WaitItem &) = delete;
+    txn_id_t tid;
+    std::shared_ptr<std::promise<bool> > p = std::make_shared<std::promise<bool>>();
+    WaitState targetState;
+    WaitItem(txn_id_t id, WaitState ws) : tid(id), targetState(ws) {}
+  };
+  std::list<WaitItem> lst;
+};
 
 class LockManager {
 
  public:
-  LockManager(bool strict_2PL) : strict_2PL_(strict_2PL) {
-    hash = new ExtendibleHash<RID, std::shared_ptr<WaitList>>(2);
-  };
-  ~LockManager() {
-    delete hash;
-  }
+  LockManager(bool strict_2PL);
   /*** below are APIs need to implement ***/
   // lock:
   // return false if transaction is aborted
@@ -45,36 +64,11 @@ class LockManager {
   /*** END OF APIs ***/
 
  private:
-  enum class WaitState { INIT, SHARED, EXCLUSIVE };
-  class WaitList {
-   public:
-    WaitList(const WaitState &) = delete;
-    WaitList &operator=(const WaitList &) = delete;
-    WaitList(txn_id_t id, WaitState target) : oldest(id), state(target) {
-      granted.insert(id);
-    }
-    WaitList() {}
-    txn_id_t oldest = -1; //oldest txn that holds the lock
-    WaitState state = WaitState::INIT;
-    std::set<txn_id_t> granted;
-
-    class WaitItem {
-     public:
-      WaitItem(const WaitItem &) = delete;
-      WaitItem &operator=(const WaitItem &) = delete;
-      txn_id_t tid;
-      std::shared_ptr<std::promise<bool> > p = std::make_shared<std::promise<bool>>();
-      WaitState targetState;
-      WaitItem(txn_id_t id, WaitState ws) : tid(id), targetState(ws) {}
-    };
-    std::list<WaitItem> lst;
-  };
 
   bool strict_2PL_;
   std::mutex mtx;//sync method calling on hash table
-  HashTable<RID, std::shared_ptr<WaitList>> *hash;
-//  std::unordered_map<RID, std::shared_ptr<WaitList>> hash;
-  bool checkTxn(Transaction *txn);
+  std::unordered_map<RID, std::shared_ptr<WaitList>> hash;
+  bool isValidToAcquireLock(Transaction *txn);
 };
 
 } // namespace cmudb
