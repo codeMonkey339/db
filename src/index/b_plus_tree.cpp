@@ -23,7 +23,10 @@ BPLUSTREE_TYPE::BPlusTree(const std::string &name,
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::IsEmpty() const { return root_page_id_ == INVALID_PAGE_ID; }
+bool BPLUSTREE_TYPE::IsEmpty() const {
+  std::lock_guard<std::mutex> guard(mtx);
+  return root_page_id_ == INVALID_PAGE_ID;
+}
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -36,7 +39,7 @@ INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
                               std::vector<ValueType> &result,
                               Transaction *transaction) {
-  auto leaf = GetLeafPage(key);
+  auto leaf = GetLeafPage(key, transaction);
   result.resize(1);
   auto ret = leaf->Lookup(key, result[0], comparator_);
   buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
@@ -184,7 +187,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
   if (ip->GetSize() > ip->GetMaxSize()) {
     BPInternalPage *oldlp = ip.get();
     BPInternalPage *newlp = Split(oldlp);
-    BufferPageGuard<BPInternalPage > guard(*buffer_pool_manager_, newlp);
+    BufferPageGuard<BPInternalPage> guard(*buffer_pool_manager_, newlp);
     InsertIntoParent(oldlp, newlp->KeyAt(0), newlp);
 
 //    buffer_pool_manager_->UnpinPage(newlp->GetPageId(), true);
@@ -282,7 +285,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
       Redistribute(rightSibling, node, 0);
       buffer_pool_manager_->UnpinPage(rightSiblingPageId, true);
       buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-      if(leftSibling){
+      if (leftSibling) {
         buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
       }
       return false;
@@ -564,10 +567,18 @@ void BPLUSTREE_TYPE::RemoveFromFile(const std::string &file_name,
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::GetLeafPage(const KeyType &key) {
+B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::GetLeafPage(const KeyType &key, Transaction *transaction) {
   if (IsEmpty()) { return nullptr; }
+
+  mtx.lock();
   page_id_t page_id = root_page_id_;
+  mtx.unlock();
+
   BPlusTreePage *btp = GetPage(page_id);
+  LockSharedPage(btp);
+  if(transaction){
+    transaction->
+  }
 
   while (!btp->IsLeafPage()) {
     BPInternalPage *ip = reinterpret_cast<BPInternalPage *>(btp);

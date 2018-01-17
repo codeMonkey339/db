@@ -96,7 +96,7 @@ class BPlusTree {
   page_id_t root_page_id_;
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
-//  std::mutex mtx;
+  mutable std::mutex mtx;//protect b plus tree instance,it's not used to protect concurrent r/w
   using BPInternalPage =BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
   BPInternalPage *GetInternalPage(page_id_t page_id) {
     return reinterpret_cast<BPInternalPage *>(GetPage(page_id));
@@ -114,11 +114,32 @@ class BPlusTree {
   std::shared_ptr<BPInternalPage> GetInternalPageSP(page_id_t page_id) {
     return GetPageSmartPtr<BPInternalPage>(page_id, *buffer_pool_manager_);
   }
-//  std::shared_ptr<BPlusTreePage> GetLeafPageSmartPtr(page_id_t page_id) {
-//    return GetPageSmartPtr<BPlusTreePage>(page_id, buffer_pool_manager_);
-//  }
 
-  B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(const KeyType &key);
+  B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(const KeyType &key,Transaction *transaction = nullptr);
+
+  void UnLockSharedPage(BPlusTreePage *bPlusTreePage) {
+    Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
+    tmp->RUnlatch();
+    buffer_pool_manager_->UnpinPage(tmp->GetPageId(), false);
+  }
+
+  void LockExclusivePage(BPlusTreePage *bPlusTreePage) {
+    Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
+    tmp->WLatch();
+    buffer_pool_manager_->UnpinPage(tmp->GetPageId(), false);
+  }
+
+  void UnLockExclusivePage(BPlusTreePage *bPlusTreePage) {
+    Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
+    tmp->WUnlatch();
+    buffer_pool_manager_->UnpinPage(tmp->GetPageId(), false);
+  }
+
+  void LockSharedPage(BPlusTreePage *bPlusTreePage) {
+    Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
+    tmp->RLatch();
+    buffer_pool_manager_->UnpinPage(tmp->GetPageId(), false);
+  }
 };
 
 } // namespace cmudb
