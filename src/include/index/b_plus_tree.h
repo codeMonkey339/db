@@ -96,7 +96,7 @@ class BPlusTree {
   page_id_t root_page_id_;
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
-  std::mutex mtx;
+//  std::mutex mtx;
   using BPInternalPage =BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
   BPInternalPage *GetInternalPage(page_id_t page_id) {
     return reinterpret_cast<BPInternalPage *>(GetPage(page_id));

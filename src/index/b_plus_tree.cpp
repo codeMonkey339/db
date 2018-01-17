@@ -56,7 +56,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
                             Transaction *transaction) {
-  std::lock_guard<std::mutex> guard(mtx);
+//  std::lock_guard<std::mutex> guard(mtx);
 
   if (IsEmpty()) {
     StartNewTree(key, value);
@@ -204,7 +204,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
  */
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
-  std::lock_guard<std::mutex> guard(mtx);
+//  std::lock_guard<std::mutex> guard(mtx);
   if (IsEmpty()) {
     return;
   }
