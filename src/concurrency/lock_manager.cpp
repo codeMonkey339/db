@@ -54,7 +54,7 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
     //create a waitlist and add into hash table
     auto ptr = std::make_shared<WaitList>(txn->GetTransactionId(), WaitState::SHARED);
     assert(ptr);
-//    hash->Insert(rid, ptr);
+
     hash[rid] = ptr;
     //grant lock to the txn
     //current txn is the first one asked for lock.
@@ -96,7 +96,6 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
     //create a waitlist and add into hash table
     auto ptr = std::make_shared<WaitList>(txn->GetTransactionId(), WaitState::EXCLUSIVE);
     assert(ptr);
-//    hash->Insert(rid, ptr);
     hash[rid] = ptr;
     return true;
   }
@@ -140,16 +139,27 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
     return false;
   }
 
-  //if its the only one lock holder, upgrade now.
+  guard.release();
   assert(Unlock(txn, rid));
   assert(LockExclusive(txn, rid));
   return true;
 }
 
+/**
+ * I think the difference is:
+ * strict 2pl will return true if txn is in abort state or commit state
+ * 2pl will do so it txn is in growing(change to shrinking), shrinking, abort or commit state.
+ * @param txn
+ * @param rid
+ * @return
+ */
 bool LockManager::Unlock(Transaction *txn, const RID &rid) {
-  if (!(txn->GetState() == TransactionState::GROWING || txn->GetState() == TransactionState::SHRINKING)) {
-    return false;
+  if(strict_2PL_){
+    if (!(txn->GetState() == TransactionState::COMMITTED || txn->GetState() == TransactionState::ABORTED)) {
+      return false;
+    }
   }
+
   std::unique_lock<std::mutex> guard(mtx);
   if (hash.find(rid) == hash.end()) {
     assert(false);
@@ -159,12 +169,16 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   assert(ptr);
   assert(ptr->granted.find(txn->GetTransactionId()) != ptr->granted.end());
   ptr->granted.erase(txn->GetTransactionId());
+
+  if(strict_2PL_ == false &&  txn->GetState() == TransactionState::GROWING){
+    txn->SetState(TransactionState::SHRINKING);
+  }
+
   if (!ptr->granted.empty()) {
     return true;
   }
 
   if (ptr->lst.empty()) {
-//    hash->Remove(rid);
     hash.erase(rid);
     return true;
   }
@@ -178,8 +192,6 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   ptr->lst.front().p->set_value(true);
   ptr->lst.erase(ptr->lst.begin());
   return true;
-
-//  return false;? I havn't get it.
 }
 
 } // namespace cmudb
