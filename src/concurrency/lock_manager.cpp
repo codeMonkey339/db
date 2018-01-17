@@ -59,6 +59,7 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
     //grant lock to the txn
     //current txn is the first one asked for lock.
     //so it should have the shared lock
+    txn->InsertIntoSharedLockSet(rid);
     return true;
   }
 
@@ -78,12 +79,14 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
     auto p = ptr->lst.back().p;
     guard.release();
     p->get_future();
+    txn->InsertIntoSharedLockSet(rid);
     return true;
   }
 
   assert(ptr->state == WaitState::SHARED);
   ptr->granted.insert(txn->GetTransactionId());
   ptr->oldest = std::max(ptr->oldest, txn->GetTransactionId());
+  txn->InsertIntoSharedLockSet(rid);
   return true;
 }
 
@@ -97,6 +100,7 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
     auto ptr = std::make_shared<WaitList>(txn->GetTransactionId(), WaitState::EXCLUSIVE);
     assert(ptr);
     hash[rid] = ptr;
+    txn->InsertIntoExclusiveLockSet(rid);
     return true;
   }
   auto ptr = hash[rid];
@@ -113,6 +117,7 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
   auto p = ptr->lst.back().p;
   guard.release();
   p->get_future();
+  txn->InsertIntoExclusiveLockSet(rid);
   return true;
 }
 
@@ -169,6 +174,11 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   assert(ptr);
   assert(ptr->granted.find(txn->GetTransactionId()) != ptr->granted.end());
   ptr->granted.erase(txn->GetTransactionId());
+  if(ptr->state == WaitState::EXCLUSIVE){
+    assert(txn->GetExclusiveLockSet()->erase(rid) == 1);
+  }else{
+    assert(txn->GetSharedLockSet()->erase(rid) == 1);
+  }
 
   if(strict_2PL_ == false &&  txn->GetState() == TransactionState::GROWING){
     txn->SetState(TransactionState::SHRINKING);
