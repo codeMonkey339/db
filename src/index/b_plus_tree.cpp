@@ -24,7 +24,6 @@ BPLUSTREE_TYPE::BPlusTree(const std::string &name,
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::IsEmpty() const {
-  std::lock_guard<std::mutex> guard(mtx);
   return root_page_id_ == INVALID_PAGE_ID;
 }
 /*****************************************************************************
@@ -68,7 +67,7 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
 //  std::lock_guard<std::mutex> guard(mtx);
 
   if (IsEmpty()) {
-    StartNewTree(key, value);
+    StartNewTree(key, value, transaction);
     return true;
   }
   return InsertIntoLeaf(key, value, transaction);
@@ -83,18 +82,23 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
  */
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value, Transaction *transaction) {
-  assert(IsEmpty());
+//  assert(IsEmpty());
   page_id_t page_id;
   Page *page = buffer_pool_manager_->NewPage(page_id);
   if (page == nullptr) {
     throw std::bad_alloc{};
   }
-  root_page_id_ = page_id;
   B_PLUS_TREE_LEAF_PAGE_TYPE *lp = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
   lp->Init(page_id, INVALID_PAGE_ID);
-  InsertIntoLeaf(key, value, transaction);
-  UpdateRootPageId(true);
   buffer_pool_manager_->UnpinPage(page_id, true);
+
+  page_id_t ex = INVALID_PAGE_ID;
+  if (root_page_id_.compare_exchange_strong(ex, page_id)) {
+    UpdateRootPageId(true);
+  } else {
+    buffer_pool_manager_->DeletePage(page_id);
+  }
+  InsertIntoLeaf(key, value, transaction);
 }
 
 /*
@@ -226,6 +230,11 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   assert(transaction == nullptr || (transaction->GetPageSet()->empty() && transaction->GetPageSet()->size() == 0));
   B_PLUS_TREE_LEAF_PAGE_TYPE *lp = GetLeafPage(key, transaction, 2);
   assert(lp != nullptr);
+  std::unique_lock<std::mutex> guard;
+  if (transaction->GetPageSet()->front()->GetPageId() == root_page_id_) {
+    guard = std::unique_lock<std::mutex>(mtx);
+  }
+
   auto shouldRemovePage = false;
   auto sizeAfterRemove = lp->RemoveAndDeleteRecord(key, comparator_);
   if (sizeAfterRemove < lp->GetMinSize()) {
@@ -233,9 +242,9 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   }
 
   if (shouldRemovePage) {
-    if(transaction){
+    if (transaction) {
       transaction->GetDeletedPageSet()->insert(lp->GetPageId());
-    }else{
+    } else {
       buffer_pool_manager_->UnpinPage(lp->GetPageId(), true);
       auto deletePage = buffer_pool_manager_->DeletePage(lp->GetPageId());
       assert(deletePage);
@@ -290,7 +299,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
       //the parent node should be updated as well
 
       Redistribute(leftSibling, node, 1);
-      if(!transaction){
+      if (!transaction) {
         buffer_pool_manager_->UnpinPage(leftSiblingPageId, true);
       }
       buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
@@ -307,7 +316,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     if (rightSibling->GetSize() > rightSibling->GetMinSize()) {
       //redistribute with this page
       Redistribute(rightSibling, node, 0);
-      if(!transaction){
+      if (!transaction) {
         buffer_pool_manager_->UnpinPage(rightSiblingPageId, true);
         if (leftSibling) {
           buffer_pool_manager_->UnpinPage(leftSiblingPageId, false);
@@ -324,7 +333,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   if (leftSibling) {
     //merge with left sibling node
     Coalesce(leftSibling, node, parent, 0, transaction);
-    if(!transaction){
+    if (!transaction) {
       buffer_pool_manager_->UnpinPage(leftSiblingPageId, true);
       if (rightSibling) {
         buffer_pool_manager_->UnpinPage(rightSiblingPageId, false);
@@ -333,7 +342,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   } else {
     //merge with right sibling node
     Coalesce(rightSibling, node, parent, 1, transaction);
-    if(!transaction){
+    if (!transaction) {
       buffer_pool_manager_->UnpinPage(rightSiblingPageId, true);
     }
   }
@@ -341,9 +350,9 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   auto del = CoalesceOrRedistribute(parent, transaction);
   buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
   if (del) {
-    if(transaction){
+    if (transaction) {
       transaction->GetDeletedPageSet()->insert(parent->GetPageId());
-    }else{
+    } else {
       auto ret = buffer_pool_manager_->DeletePage(parent->GetPageId());
       assert(ret);
     }
@@ -606,13 +615,20 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::GetLeafPage(const KeyType &key,
                                                         int findInsertDelete) {
   if (IsEmpty()) { return nullptr; }
   assert(transaction == nullptr || (transaction->GetPageSet()->empty() && transaction->GetDeletedPageSet()->empty()));
-  mtx.lock();
   page_id_t page_id = root_page_id_;
-  mtx.unlock();
+  page_id_t originalRoot = page_id;
 
   BPlusTreePage *btp = GetPage(page_id);
   if (transaction) {
     lockFor(findInsertDelete, btp);
+    while(originalRoot != root_page_id_){
+      unlockFor(findInsertDelete, btp);
+      buffer_pool_manager_->UnpinPage(page_id, false);
+      page_id = root_page_id_;
+      originalRoot = page_id;
+      btp = GetPage(page_id);
+      lockFor(findInsertDelete, btp);
+    }
     transaction->AddIntoPageSet(BPlusTreePageToPage(btp));
   }
 

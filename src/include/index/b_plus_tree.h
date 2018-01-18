@@ -93,7 +93,7 @@ class BPlusTree {
 
   // member variable
   std::string index_name_;
-  page_id_t root_page_id_;
+  std::atomic<page_id_t> root_page_id_;
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
   mutable std::mutex mtx;//protect b plus tree instance,it's not used to protect concurrent r/w
