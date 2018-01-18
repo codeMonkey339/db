@@ -230,10 +230,6 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   assert(transaction == nullptr || (transaction->GetPageSet()->empty() && transaction->GetPageSet()->size() == 0));
   B_PLUS_TREE_LEAF_PAGE_TYPE *lp = GetLeafPage(key, transaction, 2);
   assert(lp != nullptr);
-  std::unique_lock<std::mutex> guard;
-  if (transaction->GetPageSet()->front()->GetPageId() == root_page_id_) {
-    guard = std::unique_lock<std::mutex>(mtx);
-  }
 
   auto shouldRemovePage = false;
   auto sizeAfterRemove = lp->RemoveAndDeleteRecord(key, comparator_);
@@ -616,16 +612,14 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::GetLeafPage(const KeyType &key,
   if (IsEmpty()) { return nullptr; }
   assert(transaction == nullptr || (transaction->GetPageSet()->empty() && transaction->GetDeletedPageSet()->empty()));
   page_id_t page_id = root_page_id_;
-  page_id_t originalRoot = page_id;
 
   BPlusTreePage *btp = GetPage(page_id);
   if (transaction) {
     lockFor(findInsertDelete, btp);
-    while(originalRoot != root_page_id_){
+    while(page_id != root_page_id_){
       unlockFor(findInsertDelete, btp);
       buffer_pool_manager_->UnpinPage(page_id, false);
       page_id = root_page_id_;
-      originalRoot = page_id;
       btp = GetPage(page_id);
       lockFor(findInsertDelete, btp);
     }
