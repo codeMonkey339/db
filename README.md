@@ -6,7 +6,7 @@ So I will do the project from this code base. If you're searching for the base c
 --------------
 - [x] project 1 Buffer Pool Manager
 - [x] project 2 B+Tree
-- [ ] project 3 Concurrent Control
+- [x] project 3 Concurrent Control
 - [ ] project 4 Logging & Recovery
 
 --------------
@@ -18,6 +18,15 @@ So I will do the project from this code base. If you're searching for the base c
 introducing B+Tree with single link. It took me quite a while to fix this in redistributing and coalescing of internal nodes.
     - It's clumsy to handle next page link if two leaf page shares no same parent. A double link version is better to my thought.
     - For the ease of implementation, the size of both leaf and internal nodes are picked as greatest even value.
+* project 3 :
+    - Lock manger's test case is just a sanity check. Although test is passed, there could be something missing in my implementation.
+    The idea is that maintains a internal map of tuples and granted locks. Grant lock request by rules of shared and exclusive locks.
+    If one request will block, check whether it won't cause a deadlock. Abort requesting transaction(wait-die) if so. Strict 2PL differs
+    in unlock procedure on incoming transaction states from 2PL. Strict 2PL can only work on commited and abort state.
+    - Crabbing index concurrent control require r/w lock on pages from root to leaf. Given a root node's page is properly locked, it implies
+    that later operations on this tree is well protected and no more locking is needed. Even if root node's lock is released during transversing to leaf node.
+    The lock on root page serves as a synchronizing point. It took me a while to figure this out. I use atomic to protect root_page_id and
+    compare-and-swap to deal with concurrent insertion into empty tree from two threads.
 --------------
 
 # 15-445 Database Systems
