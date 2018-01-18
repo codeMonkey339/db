@@ -143,6 +143,7 @@ bool BufferPoolManager::DeletePage(page_id_t page_id) {
   auto ret = page_table_->Find(page_id, page);
   if (ret) {
     if (page->GetPinCount() != 0) {
+      assert(false);
       return false;
     }
 

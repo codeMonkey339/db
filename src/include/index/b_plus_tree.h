@@ -63,7 +63,7 @@ class BPlusTree {
                                            bool leftMost = false);
 
  private:
-  void StartNewTree(const KeyType &key, const ValueType &value);
+  void StartNewTree(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr);
 
   bool InsertIntoLeaf(const KeyType &key, const ValueType &value,
                       Transaction *transaction = nullptr);
@@ -101,9 +101,13 @@ class BPlusTree {
   BPInternalPage *GetInternalPage(page_id_t page_id) {
     return reinterpret_cast<BPInternalPage *>(GetPage(page_id));
   }
-  BPlusTreePage *GetPage(page_id_t page_id) {
+  BPlusTreePage *GetPage(page_id_t page_id, Transaction* transaction = nullptr, int findInsertDelete = 0) {
     if (page_id == INVALID_PAGE_ID) { return nullptr; }
     Page *page = buffer_pool_manager_->FetchPage(page_id);
+    if(transaction){
+      lockFor(findInsertDelete, page);
+      transaction->AddIntoPageSet(page);
+    }
     //if this happens, there must be some "unpin" missing.
     assert(page != nullptr);
     return reinterpret_cast<BPlusTreePage *>(page->GetData());
@@ -115,7 +119,9 @@ class BPlusTree {
     return GetPageSmartPtr<BPInternalPage>(page_id, *buffer_pool_manager_);
   }
 
-  B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(const KeyType &key,Transaction *transaction = nullptr);
+  B_PLUS_TREE_LEAF_PAGE_TYPE *GetLeafPage(const KeyType &key,
+                                          Transaction *transaction = nullptr,
+                                          int findInsertDelete = 0);
 
   void UnLockSharedPage(BPlusTreePage *bPlusTreePage) {
     Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
@@ -139,6 +145,64 @@ class BPlusTree {
     Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
     tmp->RLatch();
     buffer_pool_manager_->UnpinPage(tmp->GetPageId(), false);
+  }
+
+  Page *BPlusTreePageToPage(BPlusTreePage *bPlusTreePage) {
+    Page *tmp = buffer_pool_manager_->FetchPage(bPlusTreePage->GetPageId());
+    buffer_pool_manager_->UnpinPage(tmp->GetPageId(), false);
+    return tmp;
+  }
+
+  void lockFor(int findInsertDelete, BPlusTreePage *btp) {
+    if (findInsertDelete != 0) {
+      LockExclusivePage(btp);
+    } else {
+      LockSharedPage(btp);
+    }
+  }
+
+  void unlockFor(int findInsertDelete, BPlusTreePage *btp) {
+    if (findInsertDelete != 0) {
+      UnLockExclusivePage(btp);
+    } else {
+      UnLockSharedPage(btp);
+    }
+  }
+
+  void unlockFor(int findInsertDelete, Page *page) {
+    if (findInsertDelete != 0) {
+      page->WUnlatch();
+    } else {
+      page->RUnlatch();
+    }
+  }
+
+  void lockFor(int findInsertDelete, Page* page) {
+    if (findInsertDelete != 0) {
+      page->WLatch();
+    } else {
+      page->RLatch();
+    }
+  }
+
+  void clearTxnWorkSet(Transaction *transaction, int findInsertDelete, bool dirty = false) {
+    assert(transaction);
+    while (!transaction->GetPageSet()->empty()) {
+      Page *toUnlock = transaction->GetPageSet()->front();
+      unlockFor(findInsertDelete, toUnlock);
+      transaction->GetPageSet()->pop_front();
+      buffer_pool_manager_->UnpinPage(toUnlock->GetPageId(), dirty);
+    }
+    if(findInsertDelete == 2){
+      std::unordered_set<page_id_t> & ref = *transaction->GetDeletedPageSet();
+      for(auto iter = ref.begin(); iter !=ref.end(); iter++){
+        Page* page = buffer_pool_manager_->FetchPage(*iter);
+        unlockFor(findInsertDelete, page);
+        buffer_pool_manager_->UnpinPage(*iter, false);//unpin page
+        buffer_pool_manager_->DeletePage(*iter);//do delete
+      }
+      ref.clear();
+    }
   }
 };
 
