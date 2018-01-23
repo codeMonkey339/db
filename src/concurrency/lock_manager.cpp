@@ -145,8 +145,10 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
   }
 
   guard.release();
-  assert(Unlock(txn, rid));
-  assert(LockExclusive(txn, rid));
+  auto rUnlock = Unlock(txn, rid);
+  assert(rUnlock);
+  auto rLockEx = LockExclusive(txn, rid);
+  assert(rLockEx);
   return true;
 }
 
