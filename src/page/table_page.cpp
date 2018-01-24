@@ -16,6 +16,11 @@ void TablePage::Init(page_id_t page_id, size_t page_size,
   memcpy(GetData(), &page_id, 4); // set page_id
   if (ENABLE_LOGGING) {
     // TODO: add your logging logic here
+    // constructor for NEWPAGE type
+//    LogRecord(txn_id_t txn_id, lsn_t prev_lsn, LogRecordType log_record_type,
+//        page_id_t page_id)
+    LogRecord newPage(txn->GetTransactionId(), INVALID_LSN, LogRecordType::NEWPAGE, page_id);
+    log_manager->AppendLogRecord(newPage);
   }
   SetPrevPageId(prev_page_id);
   SetNextPageId(INVALID_PAGE_ID);

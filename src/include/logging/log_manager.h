@@ -21,7 +21,7 @@ public:
   LogManager(DiskManager *disk_manager)
       : next_lsn_(0), persistent_lsn_(INVALID_LSN),
         disk_manager_(disk_manager) {
-    // TODO: you may intialize your own defined memeber variables here
+    // TODO: you may initialize your own defined member variables here
     log_buffer_ = new char[LOG_BUFFER_SIZE];
     flush_buffer_ = new char[LOG_BUFFER_SIZE];
   }
@@ -36,6 +36,7 @@ public:
   void RunFlushThread();
   void StopFlushThread();
 
+  // guess this is the SerializeLogRecord mentioned project brief but doesn't show up in code base
   // append a log record into log buffer
   lsn_t AppendLogRecord(LogRecord &log_record);
 
