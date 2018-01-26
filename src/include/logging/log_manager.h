@@ -17,13 +17,13 @@
 namespace cmudb {
 
 class LogManager {
-public:
+ public:
   LogManager(DiskManager *disk_manager)
       : next_lsn_(0), persistent_lsn_(INVALID_LSN),
         disk_manager_(disk_manager) {
-    // TODO: you may initialize your own defined member variables here
     log_buffer_ = new char[LOG_BUFFER_SIZE];
     flush_buffer_ = new char[LOG_BUFFER_SIZE];
+    flush_thread_on = false;
   }
 
   ~LogManager() {
@@ -31,6 +31,7 @@ public:
     delete[] flush_buffer_;
     log_buffer_ = nullptr;
     flush_buffer_ = nullptr;
+    StopFlushThread();
   }
   // spawn a separate thread to wake up periodically to flush
   void RunFlushThread();
@@ -45,7 +46,8 @@ public:
   inline void SetPersistentLSN(lsn_t lsn) { persistent_lsn_ = lsn; }
   inline char *GetLogBuffer() { return log_buffer_; }
 
-private:
+  void bgFsync();
+ private:
   // TODO: you may add your own member variables
   // also remember to change constructor accordingly
 
@@ -64,6 +66,14 @@ private:
   std::condition_variable cv_;
   // disk manager
   DiskManager *disk_manager_;
+
+  //========new member==========
+  std::atomic<bool> flush_thread_on;
+  std::mutex force_flush_mutex_;
+  std::condition_variable force_flush_cv_;
+
+  int flush_buffer_size_ = 0;
+  int log_buffer_size_ = 0;
 };
 
 } // namespace cmudb

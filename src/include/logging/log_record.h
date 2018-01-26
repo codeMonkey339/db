@@ -143,7 +143,7 @@ private:
   lsn_t prev_lsn_ = INVALID_LSN;
   LogRecordType log_record_type_ = LogRecordType::INVALID;
 
-  // case1: for delete operation, delete_tuple_ for UNDO opeartion
+  // case1: for delete operation, delete_tuple_ for UNDO operation
   RID delete_rid_;
   Tuple delete_tuple_;
 
