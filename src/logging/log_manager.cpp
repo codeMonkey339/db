@@ -183,10 +183,11 @@ lsn_t LogManager::AppendLogRecord(LogRecord &log_record) {
     log_record.old_tuple_.SerializeTo(log_buffer_ + pos);
     pos += log_record.old_tuple_.GetLength() + sizeof(int32_t);
     log_record.new_tuple_.SerializeTo(log_buffer_ + pos);
-  } else {
-    assert(log_record.log_record_type_ == LogRecordType::NEWPAGE);
+  } else if(log_record.log_record_type_ == LogRecordType::NEWPAGE){
 //    page_id_t prev_page_id_ = INVALID_PAGE_ID;
     memcpy(log_buffer_ + pos, &log_record.prev_page_id_, sizeof(log_record.prev_page_id_));
+  }else{
+    //nothing
   }
   log_buffer_size_ += log_record.GetSize();
   return log_record.lsn_;
