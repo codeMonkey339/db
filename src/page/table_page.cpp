@@ -19,10 +19,14 @@ void TablePage::Init(page_id_t page_id, size_t page_size,
     // constructor for NEWPAGE type
 //    LogRecord(txn_id_t txn_id, lsn_t prev_lsn, LogRecordType log_record_type,
 //        page_id_t page_id)
-    LogRecord newPage(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::NEWPAGE, page_id);
-    log_manager->AppendLogRecord(newPage);
-    txn->SetPrevLSN(newPage.GetLSN());
-    SetLSN(newPage.GetLSN());
+    /**
+     * why would I log this?
+     */
+
+//    LogRecord newPage(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::NEWPAGE, page_id);
+//    log_manager->AppendLogRecord(newPage);
+//    txn->SetPrevLSN(newPage.GetLSN());
+//    SetLSN(newPage.GetLSN());
   }
   SetPrevPageId(prev_page_id);
   SetNextPageId(INVALID_PAGE_ID);

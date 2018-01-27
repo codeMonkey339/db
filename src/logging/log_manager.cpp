@@ -50,9 +50,10 @@ void LogManager::bgFsync() {
   while (flush_thread_on) {
     {
       std::unique_lock<std::mutex> lock(latch_);
-      while (flush_buffer_size_ == 0) {
-        auto ret = cv_.wait_for(lock, std::chrono::seconds(LOG_TIMEOUT));
-        if (ret == std::cv_status::no_timeout) {
+      while (log_buffer_size_ == 0) {
+        auto ret = cv_.wait_for(lock, LOG_TIMEOUT);
+        std::cout <<( (ret == std::cv_status::no_timeout) ? "no time out" : "time out" )<< std::endl;
+        if (ret == std::cv_status::no_timeout || flush_thread_on == false) {
           //required for force flushing
           break;
         }
@@ -61,7 +62,7 @@ void LogManager::bgFsync() {
     disk_manager_->WriteLog(flush_buffer_, flush_buffer_size_);
     std::unique_lock<std::mutex> lock(latch_);
     auto lsn = lastLsn(flush_buffer_, flush_buffer_size_);
-    if(lsn != INVALID_LSN){
+    if (lsn != INVALID_LSN) {
       persistent_lsn_ = lsn;
     }
     SwapBuffer();
@@ -72,16 +73,19 @@ void LogManager::bgFsync() {
  * Stop and join the flush thread, set ENABLE_LOGGING = false
  */
 void LogManager::StopFlushThread() {
-  std::lock_guard<std::mutex> guard(latch_);
+  std::unique_lock<std::mutex> lock(latch_);
   if (flush_thread_on == true) {
     flush_thread_on = false;
     ENABLE_LOGGING = false;
     {
+      lock.unlock();
       //wake up working thread, or it may take a long time waiting before it's been joined
       cv_.notify_all();
+
     }
     assert(flush_thread_->joinable());
     flush_thread_->join();
+    lock.lock();
     delete flush_thread_;
   }
 }
@@ -208,6 +212,7 @@ lsn_t LogManager::AppendLogRecord(LogRecord &log_record) {
     //nothing
   }
   log_buffer_size_ += log_record.GetSize();
+  std::cout << "added log:" << log_record.ToString() << std::endl;
   return log_record.lsn_;
 }
 
