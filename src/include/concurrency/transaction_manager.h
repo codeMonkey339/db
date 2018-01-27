@@ -22,6 +22,8 @@ public:
   void Commit(Transaction *txn);
   void Abort(Transaction *txn);
 
+  void addLog(Transaction *txn, LogRecordType recordType);
+  void addLogAndWaitUntilFlushed(Transaction *txn, LogRecordType recordType);
 private:
   std::atomic<txn_id_t> next_txn_id_;
   LockManager *lock_manager_;
