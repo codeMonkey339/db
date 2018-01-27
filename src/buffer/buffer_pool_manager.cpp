@@ -70,6 +70,15 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     }
     assert(page->pin_count_ == 0);
     if (page->is_dirty_) {
+      if(page->GetLSN() > log_manager_->GetPersistentLSN()){
+        //flush log record until lsn >= this page's lsn is flushed to disk
+        //if two buffers in log_manager are flushed out but still cannot meet former requirement
+        //there must be something wrong
+        //for now, I think there's no need to add a method in log_manager that
+        //flush records to a given lsn. that will make group fsync less benificial.
+        log_manager_->FlushNowBlocking();
+        assert(page->GetLSN() <= log_manager_->GetPersistentLSN());
+      }
       disk_manager_->WritePage(page->GetPageId(), page->GetData());
       page->is_dirty_ = false;
     }

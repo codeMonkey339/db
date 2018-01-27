@@ -60,6 +60,8 @@ void LogManager::bgFsync() {
     }
     disk_manager_->WriteLog(flush_buffer_, flush_buffer_size_);
     std::unique_lock<std::mutex> lock(latch_);
+    auto lsn = lastLsn(flush_buffer_, flush_buffer_size_);
+    persistent_lsn_ = lsn != INVALID_LSN ? lsn : persistent_lsn_;
     SwapBuffer();
     flushed.notify_all();
   }
@@ -112,6 +114,20 @@ void LogManager::WaitUntilBgTaskFinish() {
     flushed.wait(condWait);
   }
 }
+
+//it's also applicable that using two variables to tract last lsn in log buffer and flush buffer
+//this is method below is more helpful during debugging
+int LogManager::lastLsn(char *buff, int size) {
+  lsn_t cur = INVALID_LSN;
+  char *ptr = buff;
+  while (ptr < buff + size) {
+    auto rec = reinterpret_cast<LogRecord *>(ptr);
+    cur = rec->GetLSN();
+    auto len = rec->GetSize();
+    ptr = ptr + len;
+  }
+  return cur;
+}
 /*
  * append a log record into log buffer
  * you MUST set the log record's lsn within this method
@@ -145,10 +161,10 @@ void LogManager::WaitUntilBgTaskFinish() {
  * @return
  */
 lsn_t LogManager::AppendLogRecord(LogRecord &log_record) {
-  log_record.lsn_ = next_lsn_++;
   auto size = log_record.GetSize();
   std::unique_lock<std::mutex> guard(log_mtx_);//this is used only to sync AppendLogRecord function call
   std::unique_lock<std::mutex> guard2(latch_);
+  log_record.lsn_ = next_lsn_++;
   if (size + log_buffer_size_ > LOG_BUFFER_SIZE) {
     //1.make sure flush_buffer is written out
     //wake up bg thread
@@ -183,10 +199,10 @@ lsn_t LogManager::AppendLogRecord(LogRecord &log_record) {
     log_record.old_tuple_.SerializeTo(log_buffer_ + pos);
     pos += log_record.old_tuple_.GetLength() + sizeof(int32_t);
     log_record.new_tuple_.SerializeTo(log_buffer_ + pos);
-  } else if(log_record.log_record_type_ == LogRecordType::NEWPAGE){
+  } else if (log_record.log_record_type_ == LogRecordType::NEWPAGE) {
 //    page_id_t prev_page_id_ = INVALID_PAGE_ID;
     memcpy(log_buffer_ + pos, &log_record.prev_page_id_, sizeof(log_record.prev_page_id_));
-  }else{
+  } else {
     //nothing
   }
   log_buffer_size_ += log_record.GetSize();

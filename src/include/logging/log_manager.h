@@ -40,6 +40,7 @@ class LogManager {
   void SwapBuffer();
   void GetBgTaskToWork();
   void WaitUntilBgTaskFinish();
+  int lastLsn(char* buff, int size);
 
   // guess this is the SerializeLogRecord mentioned project brief but doesn't show up in code base
   // append a log record into log buffer
