@@ -7,7 +7,7 @@ So I will do the project from this code base. If you're searching for the base c
 - [x] project 1 Buffer Pool Manager
 - [x] project 2 B+Tree
 - [x] project 3 Concurrent Control
-- [ ] project 4 Logging & Recovery
+- [x] project 4 Logging & Recovery
 
 --------------
 * project 1 :
@@ -27,6 +27,19 @@ introducing B+Tree with single link. It took me quite a while to fix this in red
     that later operations on this tree is well protected and no more locking is needed. Even if root node's lock is released during transversing to leaf node.
     The lock on root page serves as a synchronizing point. It took me a while to figure this out. I use atomic to protect root_page_id and
     compare-and-swap to deal with concurrent insertion into empty tree from two threads.
+* project 4 :
+    - Double buffer. Background thread waits for time-out or intentionally wake-up signal. On resumption, it swaps log_buffer and flush_buffer
+    pointers and related size variables. Then it releases locks on log manager and do sequential writing to flush out the log records. Signal
+    other thread upon completion. If a blocking flush is in need, wake up the background thread by signal and wait on completion condition variable.
+    Actually, it's sufficient to just do swapping of pointers in background thread other than place the swapping codes outside of the thread.
+    I didn't test all the three flushing scenarios. It seems OK on the sanity test in log_manager_test.cpp. Future and async is not used here.
+    Maybe using them can make the implementation more clear. I'll leave it for now. Got to say this problem is a much better concurrency problem than those on project 3's.
+    - Recovery without check point nor undo. Nor with a long log record list that spans more than one log page.
+    - NewPage log record. It seems weird at first glance. When a txn create a new table and dbms crash or whatever happened so that the page
+    is initialed in memory but not write back to disk, one new page log record is needed. And init method should be called on that page again.
+    As page is allocated by diskmanager, it persists between current execution and later recovery. Just re-initialize that page.
+    - Many more test cases are needed for verification. There are only two test case. One is to check output, one is on redo-only recovery.
+    BufferManager's force flush is not tested. Undo is not tested. And many more functionalities. Testing is really a big issue in dbms development.
 --------------
 
 # 15-445 Database Systems
