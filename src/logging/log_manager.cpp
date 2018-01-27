@@ -61,7 +61,9 @@ void LogManager::bgFsync() {
     disk_manager_->WriteLog(flush_buffer_, flush_buffer_size_);
     std::unique_lock<std::mutex> lock(latch_);
     auto lsn = lastLsn(flush_buffer_, flush_buffer_size_);
-    persistent_lsn_ = lsn != INVALID_LSN ? lsn : persistent_lsn_;
+    if(lsn != INVALID_LSN){
+      persistent_lsn_ = lsn;
+    }
     SwapBuffer();
     flushed.notify_all();
   }

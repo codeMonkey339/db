@@ -9,7 +9,7 @@
 namespace cmudb {
 
 void TransactionManager::addLog(Transaction *txn, LogRecordType recordType) {
-  LogRecord record(txn->GetTransactionId(), txn->GetTransactionId(), recordType);
+  LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(), recordType);
   log_manager_->AppendLogRecord(record);
   txn->SetPrevLSN(record.GetLSN());
 }
