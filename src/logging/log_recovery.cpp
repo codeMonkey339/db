@@ -88,7 +88,7 @@ void LogRecovery::Redo() {
         ENABLE_LOGGING = true;
         return;
       }
-      std::cout <<"redo:"<< record.ToString()<< std::endl;
+//      std::cout << "redo:" << record.ToString() << std::endl;
 
       auto type = record.log_record_type_;
       if (type == LogRecordType::BEGIN) {
@@ -99,7 +99,12 @@ void LogRecovery::Redo() {
         active_txn_[record.GetTxnId()] = record.GetLSN();
       }
 
-      if (type == LogRecordType::UPDATE) {
+      if (type == LogRecordType::NEWPAGE) {
+        auto pageId = record.prev_page_id_;
+        TablePage* tp = reinterpret_cast<TablePage*>(buffer_pool_manager_->FetchPage(pageId));
+        tp->Init(pageId, PAGE_SIZE, INVALID_PAGE_ID, nullptr, nullptr);
+        buffer_pool_manager_->UnpinPage(pageId, true);
+      } else if (type == LogRecordType::UPDATE) {
         auto rid = record.update_rid_;
         auto page = buffer_pool_manager_->FetchPage(rid.GetPageId());
         if (page->GetLSN() >= record.GetLSN()) {

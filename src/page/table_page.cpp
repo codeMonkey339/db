@@ -21,12 +21,17 @@ void TablePage::Init(page_id_t page_id, size_t page_size,
 //        page_id_t page_id)
     /**
      * why would I log this?
+     * tableheap provides two ctor, one is for creating, one for opening
+     * on open an existings table, we need to redo table page initialization.
+     * this is not included in txn scope, I think.
+     *
+     * on the other hand, why pageId is named previous pageId not the new page id?
      */
 
-//    LogRecord newPage(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::NEWPAGE, page_id);
-//    log_manager->AppendLogRecord(newPage);
-//    txn->SetPrevLSN(newPage.GetLSN());
-//    SetLSN(newPage.GetLSN());
+    LogRecord newPage(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::NEWPAGE, page_id);
+    log_manager->AppendLogRecord(newPage);
+    txn->SetPrevLSN(newPage.GetLSN());
+    SetLSN(newPage.GetLSN());
   }
   SetPrevPageId(prev_page_id);
   SetNextPageId(INVALID_PAGE_ID);

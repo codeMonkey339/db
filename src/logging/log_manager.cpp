@@ -3,7 +3,6 @@
  */
 
 #include "logging/log_manager.h"
-#include <unistd.h>
 
 namespace cmudb {
 /*
@@ -52,12 +51,13 @@ void LogManager::bgFsync() {
       std::unique_lock<std::mutex> lock(latch_);
       while (log_buffer_size_ == 0) {
         auto ret = cv_.wait_for(lock, LOG_TIMEOUT);
-        std::cout <<( (ret == std::cv_status::no_timeout) ? "no time out" : "time out" )<< std::endl;
+//        std::cout <<( (ret == std::cv_status::no_timeout) ? "no time out" : "time out" )<< std::endl;
         if (ret == std::cv_status::no_timeout || flush_thread_on == false) {
           //required for force flushing
           break;
         }
       }
+      SwapBuffer();
     }
     disk_manager_->WriteLog(flush_buffer_, flush_buffer_size_);
     std::unique_lock<std::mutex> lock(latch_);
@@ -65,7 +65,7 @@ void LogManager::bgFsync() {
     if (lsn != INVALID_LSN) {
       persistent_lsn_ = lsn;
     }
-    SwapBuffer();
+    flush_buffer_size_ = 0;
     flushed.notify_all();
   }
 }
@@ -212,7 +212,7 @@ lsn_t LogManager::AppendLogRecord(LogRecord &log_record) {
     //nothing
   }
   log_buffer_size_ += log_record.GetSize();
-  std::cout << "added log:" << log_record.ToString() << std::endl;
+//  std::cout << "added log:" << log_record.ToString() << std::endl;
   return log_record.lsn_;
 }
 
