@@ -27,15 +27,19 @@ class LogManager {
   }
 
   ~LogManager() {
+    StopFlushThread();
     delete[] log_buffer_;
     delete[] flush_buffer_;
     log_buffer_ = nullptr;
     flush_buffer_ = nullptr;
-    StopFlushThread();
   }
   // spawn a separate thread to wake up periodically to flush
   void RunFlushThread();
   void StopFlushThread();
+  void FlushNowBlocking();
+  void SwapBuffer();
+  void GetBgTaskToWork();
+  void WaitUntilBgTaskFinish();
 
   // guess this is the SerializeLogRecord mentioned project brief but doesn't show up in code base
   // append a log record into log buffer
@@ -69,11 +73,10 @@ class LogManager {
 
   //========new member==========
   std::atomic<bool> flush_thread_on;
-  std::mutex force_flush_mutex_;
-  std::condition_variable force_flush_cv_;
-
-  int flush_buffer_size_ = 0;
-  int log_buffer_size_ = 0;
+  std::condition_variable flushed;
+  std::mutex log_mtx_;
+  int flush_buffer_size_{0};
+  int log_buffer_size_{0};
 };
 
 } // namespace cmudb
