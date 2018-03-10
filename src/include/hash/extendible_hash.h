@@ -22,6 +22,7 @@ namespace cmudb {
     public:
         // constructor
         ExtendibleHash(size_t size);
+        ~ExtendibleHash();
 
         // helper function to generate hash addressing
         size_t HashKey(const K &key);
@@ -41,26 +42,27 @@ namespace cmudb {
         void Insert(const K &key, const V &value) override;
 
     private:
-        // the struct to hold an entry in the bucket
-        struct entry{
-            //todo: find out the type of key and value
-            //this hash table uses a template class --> generic programming?
-        };
-
+        /* section for private struct */
         // the struct to hold the bucket object
-        struct bucket{
+        struct Bucket{
+        private:
+        public:
             size_t local_bits; // local # of bits use for selecting index
-            entry *entries; // pointer to the array of entries in a bucket
-
+            std::pair<K, V> *pairs; // pointer to the list of entries in bucket
+            Bucket();
         };
 
-
+        /* section for private variables */
         size_t bucket_num_; // number of buckets in the hash table
         size_t array_size_; // fixed array size for each bucket
         size_t global_bits_; // global # of bits used for selecting index
-        std::vector<bucket*> *buckets; //the vector to hold the array of buckets
-        const int DEFAULT_BUCKET_NUM = 4; // default bucket number
-        const int DEFAULT_ENTRY_NUM = 8; // default <k,v> entry in a bucket
+        std::vector<Bucket*> *buckets; //the vector to hold the array of buckets
+        static const int DEFAULT_ENTRY_NUM = 8; // default <k,v> entry in a
+        // bucket
+        static const int DEFAULT_LOCAL_BITS = 1; // default # of bits for index
+
+        /* section for private methods */
+        void expand();
 
     };
 } // namespace cmudb

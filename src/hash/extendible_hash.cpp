@@ -12,10 +12,37 @@ namespace cmudb {
  */
     template<typename K, typename V>
     ExtendibleHash<K, V>::ExtendibleHash(size_t size) {
-        bucket_num_ = DEFAULT_BUCKET_NUM;
+        bucket_num_ = BUCKET_SIZE;
         array_size_ = DEFAULT_ENTRY_NUM;
         global_bits_ = 1;
-        buckets = new std::vector<bucket*>(DEFAULT_BUCKET_NUM);
+        buckets = new std::vector<Bucket *>(bucket_num_);
+        for (size_t i = 0; i < bucket_num_; i++){
+            buckets->push_back(new Bucket());
+        }
+    }
+
+    /**
+     * destructor
+     * @tparam K
+     * @tparam V
+     */
+    template<typename K, typename V>
+    ExtendibleHash<K,V>::~ExtendibleHash() {
+        for (std::vector<Bucket*>::iterator it = buckets->begin(); it !=
+                buckets->end(); it++)
+            delete(*it);
+        buckets->clear();
+    }
+
+    /**
+     * constructor
+     * @tparam K
+     * @tparam V
+     */
+    template<typename K, typename V>
+    ExtendibleHash<K, V>::Bucket::Bucket() {
+        local_bits = DEFAULT_LOCAL_BITS;
+        pairs = new std::pair<K,V>();
     }
 
 /*
@@ -69,15 +96,6 @@ namespace cmudb {
         return false;
     }
 
-    /**
-     * helper method to expand the table on overflow
-     * @return
-     */
-    <K, V>
-    void ExtendibleHash<K, V>::expand() {
-
-    };
-
 /*
  * insert <key,value> entry in hash table
  * Split & Redistribute bucket when there is overflow and if necessary increase
@@ -86,12 +104,22 @@ namespace cmudb {
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Insert(const K &key, const V &value) {}
 
+
+    /**
+     * helper method to expand the table on overflow
+     * @return
+     */
+    template<typename K, typename V>
+    void ExtendibleHash<K,V>::expand() {
+    };
+
     template
     class ExtendibleHash<page_id_t, Page *>;
 
     template
     class ExtendibleHash<Page *, std::list<Page *>::iterator>;
 
+    //todo: find out the meaning of such usage?
 // test purpose
     template
     class ExtendibleHash<int, std::string>;
