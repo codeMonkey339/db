@@ -30,7 +30,7 @@ namespace cmudb {
     template<typename K, typename V>
     ExtendibleHash<K, V>::~ExtendibleHash() {
         for (std::vector<Bucket *>::iterator it = buckets->begin(); it !=
-                                                                    buckets->end(); it++)
+                buckets->end(); it++)
             delete (*it);
         buckets->clear();
         delete(buckets);
@@ -43,8 +43,9 @@ namespace cmudb {
      */
     template<typename K, typename V>
     ExtendibleHash<K, V>::Bucket::Bucket() {
-        local_bits = DEFAULT_LOCAL_BITS;
+        local_depth = DEFAULT_LOCAL_BITS;
         pairs = new std::pair<K, V>();
+        len = 0;
     }
 
 /*
@@ -82,7 +83,7 @@ namespace cmudb {
     }
 
     /**
-     * lookup function fo find value associated with input key and value
+     * lookup function fo find value associated with unqiue key/value pairs
      * @tparam K
      * @tparam V
      * @param key
@@ -91,19 +92,26 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Find(const K &key, V &value) {
-        size_t hash = HashKey(key);
-        size_t bucketIdx = GetIndex(hash, GetGlobalDepth());
-        Bucket *bucket = buckets->at(bucketIdx);
-        return FindPair(bucket, key, value);
+        Bucket *bucket = findBucket(key);
+        return FindValue(bucket, key, value);
     }
 
-/*
- * delete <key,value> entry in hash table
- * Shrink & Combination is not required for this project
- */
+    /**
+     * remove a key/value pair with key as Key
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @return return true on success, and false on non-existent key
+     */
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Remove(const K &key) {
-        return false;
+        Bucket *bucket = findBucket(key);
+        bool removed = bucket->remove(key);
+        if (removed){
+            return true;
+        }else{
+            return false;
+        }
     }
 
     /**
@@ -134,29 +142,83 @@ namespace cmudb {
      * @param depth
      * @return
      */
-    size_t ExtendibleHash::GetIndex(size_t hash, size_t depth) {
+    size_t ExtendibleHash::GetBucketIndex(size_t hash, size_t depth) {
         return (hash << (sizeof(size_t) * 8 - depth)) >> depth;
     }
 
     template<typename K, typename V>
-    bool ExtendibleHash::FindPair(Bucket *bucket, const K &key,
-                                  V &value) {
-        std::pair<K,V> *p = bucket->pairs;
+    bool ExtendibleHash::FindValue(Bucket *bucket, const K &key, V &value) {
+        std::pair<K,V> *p = bucket->find(key);
+        if (p != NULL){
+            value = p->second;
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    /**
+     * given a key, find the bucket that would containt the key/value pair
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @return pointer to the Bucket
+     */
+    template<typename K, typename V>
+    Bucket* ExtendibleHash::findBucket(const K &key) {
+        //todo: need to consider global and local bits to find the right one
+        size_t hash = HashKey(key);
+        size_t bucketIdx = GetBucketIndex(hash, GetGlobalDepth());
+        Bucket *bucket = buckets->at(bucketIdx);
+        return bucket;
+    }
+
+    /**
+     * add a new pair of key/value pair in the Bucket.
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @param value
+     * @return return true on success, and false on Bucket splitting
+     */
+    template<typename K, typename V>
+    bool ExtendibleHash::Bucket::add(const K &key, const V &value){
+        //todo: need to implement pair add function
+        return false;
+    };
+
+    /**
+     * remove a pair of key/value pair in the bucket
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @return return true on success, and false on non-existent key
+     */
+    template<typename K, typename V>
+    bool ExtendibleHash::Bucket::remove(const K &key) {
+        //todo: need to implement pair remove function
+        return false;
+    }
+
+    /**
+     * check whether a key/value with K as key exists in the linked list
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @return
+     */
+    template<typename K, typename V>
+    std::pair<K,V>* ExtendibleHash::Bucket::find(const K &key) {
+        std::pair<K,V> *p = pairs;
         while (p != NULL){
             //todo: what is the right way to compare in templates?
-            // p->first == key && p->second == value
             if (std::memcmp(&p->first, &key, sizeof(K)) == 0){
-                if (std::memcmp(&p->second, &value, sizeof(V)) == 0){
-                    value = p->second;
-                    return true;
-                }else{
-                    p++;
-                }
+                return p;
             }else{
                 p++;
             }
         }
-        return false;
+        return NULL;
     }
 
     template

@@ -45,11 +45,15 @@ namespace cmudb {
         /* section for private struct */
         // the struct to hold the bucket object
         struct Bucket{
-        private:
         public:
-            size_t local_bits; // local # of bits use for selecting index
+            size_t len; // # of pairs in this list
+            size_t local_depth; // local # of bits use for selecting index
+            //todo: implementation is wrong --> linked list instead of array
             std::pair<K, V> *pairs; // pointer to the list of entries in bucket
             Bucket();
+            bool add(const K &key, const V &value);
+            bool remove(const K &key);
+            std::pair<K,V>* find(const K &key);
         };
 
         /* section for private variables */
@@ -62,8 +66,9 @@ namespace cmudb {
 
         /* section for private methods */
         void Expand();
-        size_t GetIndex(size_t hash, size_t depth);
-        bool FindPair(Bucket *bucket, const K &key, V &value);
+        size_t GetBucketIndex(size_t hash, size_t depth);
+        bool FindValue(Bucket *bucket, const K &key, V &value);
+        Bucket *findBucket(const K &key);
 
     };
 } // namespace cmudb
