@@ -55,14 +55,15 @@ namespace cmudb {
         /* section for private variables */
         size_t bucket_num_; // number of buckets in the hash table
         size_t array_size_; // fixed array size for each bucket
-        size_t global_bits_; // global # of bits used for selecting index
+        size_t global_depth_; // global # of bits used for selecting index
         std::vector<Bucket*> *buckets; //the vector to hold the array of buckets
-        static const int DEFAULT_ENTRY_NUM = 8; // default <k,v> entry in a
-        // bucket
+        static const int DEFAULT_BUCKET_NUM = 8; // default # of buckets
         static const int DEFAULT_LOCAL_BITS = 1; // default # of bits for index
 
         /* section for private methods */
-        void expand();
+        void Expand();
+        size_t GetIndex(size_t hash, size_t depth);
+        bool FindPair(Bucket *bucket, const K &key, V &value);
 
     };
 } // namespace cmudb
