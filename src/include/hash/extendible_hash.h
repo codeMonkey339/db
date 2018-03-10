@@ -43,17 +43,38 @@ namespace cmudb {
 
     private:
         /* section for private struct */
+        // struct to hold a node for a key/value pair
+        struct Node{
+            Node *prev;
+            Node *next;
+            std::pair<K,V> *p;
+            Node(const K &key, const V &value);
+        };
+        // struct to hold the linked for key/value pairs
+        //todo: if possible, make this a template and reuse it
+        struct List{
+        public:
+            Node *head; // pointer to the first Node
+            size_t len; // # of node in the linked list
+            Node* find(const K &key);
+            bool remove(const K &key);
+            bool add(const K &key, const V &value);
+            size_t len();
+            List();
+            ~List();
+        };
+
         // the struct to hold the bucket object
         struct Bucket{
         public:
-            size_t len; // # of pairs in this list
             size_t local_depth; // local # of bits use for selecting index
-            //todo: implementation is wrong --> linked list instead of array
-            std::pair<K, V> *pairs; // pointer to the list of entries in bucket
-            Bucket();
+            List *pairs; // linked list to hold the key/value pairs
             bool add(const K &key, const V &value);
             bool remove(const K &key);
             std::pair<K,V>* find(const K &key);
+            size_t len();
+            Bucket();
+            ~Bucket();
         };
 
         /* section for private variables */
@@ -65,10 +86,11 @@ namespace cmudb {
         static const int DEFAULT_LOCAL_BITS = 1; // default # of bits for index
 
         /* section for private methods */
-        void Expand();
+        void Expand(const K &key);
         size_t GetBucketIndex(size_t hash, size_t depth);
         bool FindValue(Bucket *bucket, const K &key, V &value);
         Bucket *findBucket(const K &key);
+        static bool comKeys(const K &k1, const K &k2);
 
     };
 } // namespace cmudb

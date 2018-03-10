@@ -29,23 +29,53 @@ namespace cmudb {
      */
     template<typename K, typename V>
     ExtendibleHash<K, V>::~ExtendibleHash() {
-        for (std::vector<Bucket *>::iterator it = buckets->begin(); it !=
-                buckets->end(); it++)
-            delete (*it);
-        buckets->clear();
         delete(buckets);
     }
 
     /**
-     * constructor
+     * constructor of Bucket
      * @tparam K
      * @tparam V
      */
     template<typename K, typename V>
     ExtendibleHash<K, V>::Bucket::Bucket() {
         local_depth = DEFAULT_LOCAL_BITS;
-        pairs = new std::pair<K, V>();
+        pairs = new List();
+    }
+
+    /**
+     * destructor of Bucket
+     * @tparam K
+     * @tparam V
+     */
+    template<typename K, typename V>
+    ExtendibleHash<K,V>::Bucket::~Bucket() {
+        delete(pairs);
+    };
+
+    template<typename K, typename V>
+    ExtendibleHash<K,V>::List::~List(){
+        while (head != NULL){
+            delete(head->p->first);
+        }
+    };
+
+    /**
+     * constructor for Linked List
+     * @tparam K
+     * @tparam V
+     */
+    template<typename K, typename V>
+    ExtendibleHash<K,V>::List::List(){
         len = 0;
+        head = NULL;
+    };
+
+    template<typename K, typename V>
+    ExtendibleHash<K,V>::Node::Node(const K &key, const V &value) {
+        prev = NULL;
+        next = NULL;
+        p = new std::pair<K,V>(key, value);
     }
 
 /*
@@ -71,7 +101,8 @@ namespace cmudb {
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetLocalDepth(int bucket_id) const {
-        return 0;
+        Bucket *b = buckets->at(bucket_id);
+        return b->local_depth;
     }
 
 /*
@@ -125,6 +156,15 @@ namespace cmudb {
      */
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Insert(const K &key, const V &value) {
+        Bucket *b = findBucket(key);
+        bool added = b->pairs->add(key, value);
+        if (added){
+            return;
+        }else{
+            //todo: need to find whether there is need to stop here?
+            Expand(key);
+            Insert(key, value);
+        }
     }
 
     // private methods
@@ -133,7 +173,15 @@ namespace cmudb {
      * @return
      */
     template<typename K, typename V>
-    void ExtendibleHash<K, V>::Expand() {
+    void ExtendibleHash<K, V>::Expand(const K &key) {
+        //todo: expand the # of buckets and redistribute keys
+        std::vector<Bucket*> new_b = std::vector<Bucket*>(2 * bucket_num_);
+        for (size_t i = 0; i < 2 * buckets->size(); i++){
+            if (i < buckets->size()){
+            }else{
+
+            }
+        }
     };
 
     /**
@@ -183,8 +231,7 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash::Bucket::add(const K &key, const V &value){
-        //todo: need to implement pair add function
-        return false;
+        return pairs->add(key, value);
     };
 
     /**
@@ -196,8 +243,7 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash::Bucket::remove(const K &key) {
-        //todo: need to implement pair remove function
-        return false;
+        return pairs->remove(key);
     }
 
     /**
@@ -209,17 +255,99 @@ namespace cmudb {
      */
     template<typename K, typename V>
     std::pair<K,V>* ExtendibleHash::Bucket::find(const K &key) {
-        std::pair<K,V> *p = pairs;
-        while (p != NULL){
-            //todo: what is the right way to compare in templates?
-            if (std::memcmp(&p->first, &key, sizeof(K)) == 0){
-                return p;
-            }else{
-                p++;
+        Node *n = pairs->find(key);
+        if (n != NULL){
+            return n->p;
+        }else{
+            return NULL;
+        }
+    }
+
+    template<typename K, typename V>
+    size_t ExtendibleHash::Bucket::len() {
+        return pairs->len();
+    }
+
+    template<typename K, typename V>
+    Node* ExtendibleHash::List::find(const K &key) {
+        if (head == NULL){
+            return false;
+        }
+        Node *n = head;
+        while (n != NULL){
+            if (comKeys(n->p->first, key)){
+                return n;
             }
         }
         return NULL;
     }
+
+    template<typename K, typename V>
+    bool ExtendibleHash::List::remove(const K &key){
+        if (head == NULL){
+            return false;
+        }
+        Node *n = head;
+        while(n != NULL){
+            if (comKeys(n->p->first, key)){
+                len--;
+                if (n == head){
+                    delete(head);
+                    head = n;
+                    return true;
+                }else{
+                    Node *prev = n->prev;
+                    prev->next = n->next;
+                    n->next->prev = prev;
+                    delete(n);
+                    return true;
+                }
+            }else{
+                n = n->next;
+            }
+        }
+        return false;
+    };
+
+    template<typename K, typename V>
+    bool ExtendibleHash::List::add(const K &key, const V &value) {
+        if (len == BUCKET_SIZE){
+            return false;
+        }
+        Node *n = head;
+        if (n == NULL){
+            head = new Node(key, value);
+        }else{
+            while (n->next != NULL){
+                n = n->next;
+            }
+            Node *newNode = new Node(key, value);
+            n->next = newNode;
+            newNode->prev = n;
+        }
+        return true;
+    }
+
+    template<typename K, typename V>
+    size_t ExtendibleHash::List::len() {
+        return len;
+    }
+
+    /**
+     * compare whether two template keys are equal
+     * @tparam K
+     * @tparam V
+     * @param k1
+     * @param k2
+     * @return
+     */
+    template<typename K, typename V>
+    static bool ExtendibleHash::comKeys(const K &k1, const K &k2){
+        //todo: need to find the right way to compare keys
+        return std::memcmp(&k1, &k2, sizeof(K)) == 0;
+    };
+
+
 
     template
     class ExtendibleHash<page_id_t, Page *>;
