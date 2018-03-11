@@ -40,6 +40,7 @@ namespace cmudb {
         bool Remove(const K &key) override;
 
         void Insert(const K &key, const V &value) override;
+    protected:
 
     private:
         /* section for private struct */
@@ -69,15 +70,19 @@ namespace cmudb {
         public:
             size_t local_depth; // local # of bits use for selecting index
             List *pairs; // linked list to hold the key/value pairs
+            Bucket *next; // pointer to next overflow Bucket
             bool add(const K &key, const V &value);
             bool remove(const K &key);
             std::pair<K,V>* find(const K &key);
             size_t len();
+            Node *head();
             Bucket();
+            Bucket(size_t l_depth);
             ~Bucket();
         };
 
         /* section for private variables */
+        size_t bucket_ptr; // pointer to the bucket that will be expanded
         size_t bucket_num_; // number of buckets in the hash table
         size_t array_size_; // fixed array size for each bucket
         size_t global_depth_; // global # of bits used for selecting index
@@ -87,9 +92,12 @@ namespace cmudb {
 
         /* section for private methods */
         void Expand(const K &key);
+        bool SplitBucket(const K &key);
+        size_t RedistKeys(Bucket *b1, Bucket *b2, size_t i);
+        void AddOverflowBucket(Bucket *b1, Bucket *b2);
         size_t GetBucketIndex(size_t hash, size_t depth);
         bool FindValue(Bucket *bucket, const K &key, V &value);
-        Bucket *findBucket(const K &key);
+        Bucket *FindBucket(const K &key);
         static bool comKeys(const K &k1, const K &k2);
 
     };
