@@ -54,30 +54,34 @@ namespace cmudb {
         // struct to hold the linked for key/value pairs
         //todo: if possible, make this a template and reuse it
         struct List{
+            List();
         public:
             Node *head; // pointer to the first Node
             size_t len; // # of node in the linked list
+            size_t arr_size; // max # of key/value pairs allowed
             Node* find(const K &key);
             bool remove(const K &key);
             bool add(const K &key, const V &value);
             size_t len();
-            List();
+            List(size_t array_size);
             ~List();
         };
 
         // the struct to hold the bucket object
         struct Bucket{
+        private:
+            Bucket();
         public:
             size_t local_depth; // local # of bits use for selecting index
             List *pairs; // linked list to hold the key/value pairs
             Bucket *next; // pointer to next overflow Bucket
+            size_t arr_size; // max # of key/value pairs
             bool add(const K &key, const V &value);
             bool remove(const K &key);
             std::pair<K,V>* find(const K &key);
             size_t len();
             Node *head();
-            Bucket();
-            Bucket(size_t l_depth);
+            Bucket(size_t l_depth,size_t array_size);
             ~Bucket();
         };
 

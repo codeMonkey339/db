@@ -19,7 +19,7 @@ namespace cmudb {
         buckets = new std::vector<Bucket *>(bucket_num_);
         bucket_ptr = 0;
         for (size_t i = 0; i < bucket_num_; i++) {
-            buckets->push_back(new Bucket());
+            buckets->push_back(new Bucket(0, array_size_));
         }
     }
 
@@ -39,22 +39,12 @@ namespace cmudb {
      * @tparam V
      */
     template<typename K, typename V>
-    ExtendibleHash<K, V>::Bucket::Bucket() {
-        local_depth = DEFAULT_LOCAL_BITS;
-        pairs = new List();
+    ExtendibleHash<K, V>::Bucket::Bucket(size_t l_depth, size_t array_size) {
+        local_depth = l_depth;
+        arr_size = array_size;
+        pairs = new List(arr_size);
     }
 
-    /**
-     * overloading constructor of Bucket
-     * @tparam K
-     * @tparam V
-     * @param l_depth the local depth of the new bucket
-     */
-    template<typename K, typename V>
-    ExtendibleHash<K,V>::Bucket::Bucket(size_t l_depth) {
-        local_depth = l_depth;
-        pairs = new List();
-    }
 
     /**
      * destructor of Bucket
@@ -79,9 +69,10 @@ namespace cmudb {
      * @tparam V
      */
     template<typename K, typename V>
-    ExtendibleHash<K,V>::List::List(){
+    ExtendibleHash<K,V>::List::List(size_t array_size){
         len = 0;
         head = NULL;
+        arr_size = array_size;
     };
 
     template<typename K, typename V>
@@ -190,7 +181,7 @@ namespace cmudb {
             return false;
         }else{
             b->local_depth++;
-            Bucket *next = new Bucket(b->local_depth);
+            Bucket *next = new Bucket(b->local_depth, array_size_);
             if(RedistKeys(b, next, bucket_id) > 0){
                 buckets->at(bucket_id + 1) = next;
             }else{
@@ -215,7 +206,7 @@ namespace cmudb {
             if (i == bucket_idx){
                 Bucket *b = buckets->at(i);
                 b->local_depth++;
-                Bucket *next = new Bucket(b->local_depth);
+                Bucket *next = new Bucket(b->local_depth, array_size_);
                 RedistKeys(b, next, bucket_idx);
                 new_b->push_back(b);
                 new_b->push_back(next);
@@ -342,22 +333,30 @@ namespace cmudb {
      */
     template<typename K, typename V>
     size_t ExtendibleHash::RedistKeys(Bucket *b1, Bucket *b2, size_t i) {
-        //todo: need to consider the case of overflow page
-        Node *head = b1->head();
         size_t nMoved = 0;
-        while (head != NULL){
-            size_t idx = GetBucketIndex(HashKey(head->p->first),
-                                        GetGlobalDepth());
-            if (idx != i){
-                b2->add(head->p->first, head->p->second);
-                nMoved++;
+        while (b1 != NULL){
+            Node *head = b1->head();
+            while (head != NULL){
+                size_t idx = GetBucketIndex(HashKey(head->p->first),
+                                            GetGlobalDepth());
+                if (idx != i){
+                    if (!b2->add(head->p->first, head->p->second)){
+                        Bucket *next = new Bucket(b2->local_depth,b2->arr_size);
+                        AddOverflowBucket(b2, next);
+                        b2 = next;
+                        b2->add(head->p->first, head->p->second);
+                    };
+                    nMoved++;
+                }
+                head = head->next;
             }
-            head = head->next;
-        }
-        Node *n_head = b2->head();
-        while (n_head != NULL){
-            b1->remove(n_head->p->first);
-            n_head = n_head->next;
+            Node *n_head = b2->head();
+            while (n_head != NULL){
+                b1->remove(n_head->p->first);
+                n_head = n_head->next;
+            }
+            //todo: need to squash the empty Bucket
+            b1 = b1->next;
         }
         return nMoved;
     }
@@ -417,7 +416,7 @@ namespace cmudb {
     template<typename K, typename V>
     bool ExtendibleHash::List::add(const K &key, const V &value) {
         //todo: how about adding overflow Buckets?
-        if (len == array_size_){
+        if (len == arr_size){
             return false;
         }
         Node *n = head;
