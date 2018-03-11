@@ -62,7 +62,7 @@ namespace cmudb {
             Node* find(const K &key);
             bool remove(const K &key);
             bool add(const K &key, const V &value);
-            size_t len();
+            bool comKeys(const K &k1, const K &k2);
             List(size_t array_size);
             ~List();
         };
@@ -81,6 +81,7 @@ namespace cmudb {
             std::pair<K,V>* find(const K &key);
             size_t len();
             Node *head();
+            void squashBuckets();
             Bucket(size_t l_depth,size_t array_size);
             ~Bucket();
         };
@@ -102,7 +103,8 @@ namespace cmudb {
         size_t GetBucketIndex(size_t hash, size_t depth);
         bool FindValue(Bucket *bucket, const K &key, V &value);
         Bucket *FindBucket(const K &key);
-        static bool comKeys(const K &k1, const K &k2);
+        //todo: remove this comparison method here
+        bool comKeys(const K &k1, const K &k2);
 
     };
 } // namespace cmudb
