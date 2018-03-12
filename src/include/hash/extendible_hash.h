@@ -87,7 +87,6 @@ namespace cmudb {
         };
 
         /* section for private variables */
-        size_t bucket_ptr; // pointer to the bucket that will be expanded
         size_t bucket_num_; // number of buckets in the hash table
         size_t array_size_; // fixed array size for each bucket
         size_t global_depth_; // global # of bits used for selecting index

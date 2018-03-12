@@ -17,7 +17,6 @@ namespace cmudb {
         array_size_ = size;
         global_depth_ = std::log2(DEFAULT_BUCKET_NUM);
         buckets = new std::vector<Bucket *>();
-        bucket_ptr = 0;
         for (size_t i = 0; i < bucket_num_; i++) {
             buckets->push_back(new Bucket(0, array_size_));
         }
