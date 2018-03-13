@@ -13,12 +13,13 @@ namespace cmudb {
  */
     template<typename K, typename V>
     ExtendibleHash<K, V>::ExtendibleHash(size_t size) {
-        bucket_num_ = DEFAULT_BUCKET_NUM;
+        //todo: use uni_ptr to manage dynamic memory
+        global_depth_ = 0;
+        bucket_num_ = pow(2, global_depth_);
         array_size_ = size;
-        global_depth_ = std::log2(pow(2, bucket_num_));
         buckets = new std::vector<Bucket *>();
-        for (size_t i = 0; i < pow(2, bucket_num_); i++) {
-            buckets->push_back(new Bucket(0, array_size_));
+        for (size_t i = 0; i < bucket_num_; i++) {
+            buckets->push_back(new Bucket(0, array_size_, 0));
         }
     }
 
@@ -38,9 +39,11 @@ namespace cmudb {
      * @tparam V
      */
     template<typename K, typename V>
-    ExtendibleHash<K, V>::Bucket::Bucket(size_t l_depth, size_t array_size) {
+    ExtendibleHash<K, V>::Bucket::Bucket(size_t l_depth, size_t array_size,
+                                         size_t index) {
         local_depth = l_depth;
         arr_size = array_size;
+        id = index;
         pairs = new List(arr_size);
         next = NULL;
     }
@@ -178,16 +181,16 @@ namespace cmudb {
     template<typename K,typename V>
     bool ExtendibleHash<K,V>::SplitBucket(const K &key){
         Bucket *b = FindBucket(key);
-        size_t bucket_id = GetBucketIndex(HashKey(key), GetGlobalDepth());
         if (b->local_depth == (size_t)GetGlobalDepth()){
             return false;
         }else{
-            //todo: need to update this from MSB to LSB
             b->local_depth++;
-            Bucket *next = new Bucket(b->local_depth, array_size_);
-            if(RedistKeys(b, next, bucket_id) > 0){
-                buckets->at(bucket_id + 1) = next;
+            Bucket *next = new Bucket(b->local_depth, array_size_, b->id*2+1);
+            if(RedistKeys(b, next, b->id) > 0){
+                // splitting is successful
+                buckets->at(next->id) = next;
             }else{
+                // splitting will only create an empty bucket
                 b->local_depth--;
                 next->local_depth--;
                 AddOverflowBucket(b, next);
@@ -202,27 +205,29 @@ namespace cmudb {
      */
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Expand(const K &key) {
-        //todo: need to update this from MSB to LSB
-        size_t bucket_idx = GetBucketIndex(HashKey(key), GetGlobalDepth());
+        Bucket *b = FindBucket(key);
         global_depth_++;
-        std::vector<Bucket*> *new_b = new std::vector<Bucket*>(2 * bucket_num_);
-        for (size_t i = 0; i < bucket_num_; i++){
-            if (i == bucket_idx){
-                Bucket *b = buckets->at(i);
-                b->local_depth++;
-                Bucket *next = new Bucket(b->local_depth, array_size_);
-                RedistKeys(b, next, bucket_idx);
-                new_b->push_back(b);
-                new_b->push_back(next);
-                if (RedistKeys(b, next, bucket_idx) == 0){
-                    b->local_depth--;
-                    next->local_depth--;
-                }
+        std::vector<Bucket*> *new_b = new std::vector<Bucket*>();
+        for (size_t i = 0; i < 2 * bucket_num_; i++){
+            if (i < bucket_num_){
+                new_b->push_back(buckets->at(i));
             }else{
-                new_b->push_back(buckets->at(i));
-                new_b->push_back(buckets->at(i));
+                size_t prev_i = i - bucket_num_;
+                if (prev_i != b->id){
+                    new_b->push_back(buckets->at(prev_i));
+                }else{
+                    b->local_depth++;
+                    Bucket *next = new Bucket(b->local_depth, array_size_, i);
+                    if(RedistKeys(b, next, b->id) > 0){
+                        // splitting is successful
+                        new_b->push_back(next);
+                    }else{
+                        std::cout<<"Overflow occurred in expanding"<< std::endl;
+                    }
+                }
             }
         }
+
         delete(buckets);
         buckets = new_b;
     };
@@ -301,6 +306,18 @@ namespace cmudb {
     }
 
     /**
+     * evict a key/value pair in the bucket
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @return
+     */
+    template<typename K, typename V>
+    bool ExtendibleHash<K,V>::Bucket::evict(const K &key) {
+        return pairs->unlink(key);
+    }
+
+    /**
      * check whether a key/value with K as key exists in the linked list
      * @tparam K
      * @tparam V
@@ -332,15 +349,16 @@ namespace cmudb {
      * redistribute key/value pairs between 2 neighboring buckets
      * @tparam K
      * @tparam V
-     * @param b1
-     * @param b2
-     * @param i
+     * @param b1 the former Bucket
+     * @param b2 the latter Bucket
+     * @param i the bucket id of the former bucket
      * @return the # of key/value pairs have been re-distributed
      */
     template<typename K, typename V>
     size_t ExtendibleHash<K,V>::RedistKeys(Bucket *b1, Bucket *b2, size_t i) {
         size_t nMoved = 0;
         Bucket *b1_o = b1, *b2_o = b2;
+        // consider the existence of overflow bucket
         while (b1 != NULL){
             Node *head = b1->head();
             while (head != NULL){
@@ -348,7 +366,8 @@ namespace cmudb {
                                             GetGlobalDepth());
                 if (idx != i){
                     if (!b2->add(head->p->first, head->p->second)){
-                        Bucket *next = new Bucket(b2->local_depth,b2->arr_size);
+                        Bucket *next = new Bucket(b2->local_depth,
+                                                  b2->arr_size, b2->id);
                         AddOverflowBucket(b2, next);
                         b2 = next;
                         b2->add(head->p->first, head->p->second);
@@ -412,6 +431,7 @@ namespace cmudb {
             if (comKeys(n->p->first, key)){
                 len--;
                 if (n == head){
+                    n = head->next;
                     delete(head);
                     head = n;
                     return true;
@@ -428,6 +448,31 @@ namespace cmudb {
         }
         return false;
     };
+
+    template<typename K, typename V>
+    bool ExtendibleHash<K,V>::List::unlink(const K &key) {
+        if (head == NULL){
+            return false;
+        }
+        Node *n = head;
+        while(n != NULL){
+            if (comKeys(n->p->first, key)){
+                len--;
+                if (n == head){
+                    head = n;
+                    return true;
+                }else{
+                    Node *prev = n->prev;
+                    prev->next = n->next;
+                    n->next->prev = prev;
+                    return true;
+                }
+            }else{
+                n = n->next;
+            }
+        }
+        return false;
+    }
 
     template<typename K, typename V>
     bool ExtendibleHash<K,V>::List::add(const K &key, const V &value) {

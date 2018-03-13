@@ -61,6 +61,7 @@ namespace cmudb {
             size_t arr_size; // max # of key/value pairs allowed
             Node* find(const K &key);
             bool remove(const K &key);
+            bool unlink(const K &key);
             bool add(const K &key, const V &value);
             bool comKeys(const K &k1, const K &k2);
             List(size_t array_size);
@@ -76,13 +77,15 @@ namespace cmudb {
             List *pairs; // linked list to hold the key/value pairs
             Bucket *next; // pointer to next overflow Bucket
             size_t arr_size; // max # of key/value pairs
+            size_t id; // the index # of the bucket
             bool add(const K &key, const V &value);
             bool remove(const K &key);
+            bool evict(const K &key);
             std::pair<K,V>* find(const K &key);
             size_t len();
             Node *head();
             void squashBuckets();
-            Bucket(size_t l_depth,size_t array_size);
+            Bucket(size_t l_depth,size_t array_size, size_t index);
             ~Bucket();
         };
 
@@ -91,8 +94,6 @@ namespace cmudb {
         size_t array_size_; // fixed array size for each bucket
         size_t global_depth_; // global # of bits used for selecting index
         std::vector<Bucket*> *buckets; //the vector to hold the array of buckets
-        static const int DEFAULT_BUCKET_NUM = 0; // default # of buckets
-        static const int DEFAULT_LOCAL_BITS = 1; // default # of bits for index
 
         /* section for private methods */
         void Expand(const K &key);
