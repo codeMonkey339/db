@@ -91,7 +91,7 @@ namespace cmudb {
         size_t array_size_; // fixed array size for each bucket
         size_t global_depth_; // global # of bits used for selecting index
         std::vector<Bucket*> *buckets; //the vector to hold the array of buckets
-        static const int DEFAULT_BUCKET_NUM = 8; // default # of buckets
+        static const int DEFAULT_BUCKET_NUM = 0; // default # of buckets
         static const int DEFAULT_LOCAL_BITS = 1; // default # of bits for index
 
         /* section for private methods */

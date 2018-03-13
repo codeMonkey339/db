@@ -15,9 +15,9 @@ namespace cmudb {
     ExtendibleHash<K, V>::ExtendibleHash(size_t size) {
         bucket_num_ = DEFAULT_BUCKET_NUM;
         array_size_ = size;
-        global_depth_ = std::log2(DEFAULT_BUCKET_NUM);
+        global_depth_ = std::log2(pow(2, bucket_num_));
         buckets = new std::vector<Bucket *>();
-        for (size_t i = 0; i < bucket_num_; i++) {
+        for (size_t i = 0; i < pow(2, bucket_num_); i++) {
             buckets->push_back(new Bucket(0, array_size_));
         }
     }
@@ -42,6 +42,7 @@ namespace cmudb {
         local_depth = l_depth;
         arr_size = array_size;
         pairs = new List(arr_size);
+        next = NULL;
     }
 
 
@@ -181,6 +182,7 @@ namespace cmudb {
         if (b->local_depth == (size_t)GetGlobalDepth()){
             return false;
         }else{
+            //todo: need to update this from MSB to LSB
             b->local_depth++;
             Bucket *next = new Bucket(b->local_depth, array_size_);
             if(RedistKeys(b, next, bucket_id) > 0){
@@ -200,6 +202,7 @@ namespace cmudb {
      */
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Expand(const K &key) {
+        //todo: need to update this from MSB to LSB
         size_t bucket_idx = GetBucketIndex(HashKey(key), GetGlobalDepth());
         global_depth_++;
         std::vector<Bucket*> *new_b = new std::vector<Bucket*>(2 * bucket_num_);
@@ -232,7 +235,7 @@ namespace cmudb {
      */
     template<typename K, typename V>
     size_t ExtendibleHash<K,V>::GetBucketIndex(size_t hash, size_t depth) {
-        return (hash >> (sizeof(size_t) * 8 - depth));
+        return hash & ((1 << global_depth_) - 1);
     }
 
     template<typename K, typename V>
@@ -442,6 +445,7 @@ namespace cmudb {
             n->next = newNode;
             newNode->prev = n;
         }
+        len++;
         return true;
     }
 
