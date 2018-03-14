@@ -181,6 +181,7 @@ namespace cmudb {
     template<typename K,typename V>
     bool ExtendibleHash<K,V>::SplitBucket(const K &key){
         Bucket *b = FindBucket(key);
+        //todo: when overflow happens, local_depth == global_depth. How?
         if (b->local_depth == (size_t)GetGlobalDepth()){
             return false;
         }else{
@@ -389,6 +390,18 @@ namespace cmudb {
         return nMoved;
     }
 
+    /**
+     * return the Bucket at index id. For testing purpose only
+     * @tparam K
+     * @tparam V
+     * @param id
+     * @return
+     */
+    template<typename K, typename V>
+    typename ExtendibleHash<K,V>::Bucket* ExtendibleHash<K,V>::getBucket(size_t
+                                                                     id) {
+        return buckets->at(id);
+    }
 
     template<typename K, typename V>
     void ExtendibleHash<K,V>::Bucket::squashBuckets() {

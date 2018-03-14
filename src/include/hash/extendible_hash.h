@@ -40,9 +40,9 @@ namespace cmudb {
         bool Remove(const K &key) override;
 
         void Insert(const K &key, const V &value) override;
-    protected:
 
-    private:
+        /* for testing purpose only */
+
         /* section for private struct */
         // struct to hold a node for a key/value pair
         struct Node{
@@ -88,6 +88,9 @@ namespace cmudb {
             Bucket(size_t l_depth,size_t array_size, size_t index);
             ~Bucket();
         };
+        Bucket *getBucket(size_t id);
+    protected:
+    private:
 
         /* section for private variables */
         size_t bucket_num_; // number of buckets in the hash table
