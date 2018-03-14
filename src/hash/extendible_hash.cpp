@@ -418,6 +418,7 @@ namespace cmudb {
             if (comKeys(n->p->first, key)){
                 return n;
             }
+            n = n->next;
         }
         return NULL;
     }
