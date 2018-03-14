@@ -185,6 +185,7 @@ namespace cmudb {
         if (b->local_depth == (size_t)GetGlobalDepth()){
             return false;
         }else{
+            // there exists unused bucket for expanding
             b->local_depth++;
             Bucket *next = new Bucket(b->local_depth, array_size_, b->id +
                     bucket_num_ / 2);
@@ -193,13 +194,14 @@ namespace cmudb {
                 buckets->at(next->id) = next;
             }else{
                 // splitting will only create an empty bucket
+                delete(next);
                 b->local_depth--;
-                next->local_depth--;
+                next = new Bucket(b->local_depth, array_size_, b->id);
                 AddOverflowBucket(b, next);
             }
             return true;
         }
-    };
+    }
 
     /**
      * helper method to expand the table on overflow
@@ -224,7 +226,10 @@ namespace cmudb {
                         // splitting is successful
                         new_b->push_back(next);
                     }else{
-                        std::cout<<"Overflow occurred in expanding"<< std::endl;
+                        delete(next);
+                        b->local_depth--;
+                        next = new Bucket(b->local_depth, array_size_, b->id);
+                        AddOverflowBucket(b, next);
                     }
                 }
             }
@@ -232,7 +237,7 @@ namespace cmudb {
         bucket_num_ *= 2;
         delete(buckets);
         buckets = new_b;
-    };
+    }
 
     /**
      * find the bucket index given hash and the local depth
@@ -304,7 +309,16 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash<K,V>::Bucket::remove(const K &key) {
-        return pairs->remove(key);
+        Bucket *cur = this;
+        while(cur != NULL){
+            bool removed = cur->pairs->remove(key);
+            if (removed){
+                return true;
+            }else{
+                cur = cur->next;
+            }
+        }
+        return false;
     }
 
     /**
@@ -328,12 +342,16 @@ namespace cmudb {
      */
     template<typename K, typename V>
     std::pair<K,V>* ExtendibleHash<K,V>::Bucket::find(const K &key) {
-        Node *n = pairs->find(key);
-        if (n != NULL){
-            return n->p;
-        }else{
-            return NULL;
+        Bucket *cur = this;
+        while(cur != NULL){
+            Node *n = cur->pairs->find(key);
+            if (n != NULL){
+                return n->p;
+            }else{
+                cur = cur->next;
+            }
         }
+        return nullptr;
     }
 
     /**
@@ -389,19 +407,7 @@ namespace cmudb {
         b2_o->squashBuckets();
         return nMoved;
     }
-
-    /**
-     * return the Bucket at index id. For testing purpose only
-     * @tparam K
-     * @tparam V
-     * @param id
-     * @return
-     */
-    template<typename K, typename V>
-    typename ExtendibleHash<K,V>::Bucket* ExtendibleHash<K,V>::getBucket(size_t
-                                                                     id) {
-        return buckets->at(id);
-    }
+    
 
     template<typename K, typename V>
     void ExtendibleHash<K,V>::Bucket::squashBuckets() {

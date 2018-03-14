@@ -43,6 +43,9 @@ namespace cmudb {
 
         /* for testing purpose only */
 
+    protected:
+    private:
+
         /* section for private struct */
         // struct to hold a node for a key/value pair
         struct Node{
@@ -88,10 +91,6 @@ namespace cmudb {
             Bucket(size_t l_depth,size_t array_size, size_t index);
             ~Bucket();
         };
-        Bucket *getBucket(size_t id);
-    protected:
-    private:
-
         /* section for private variables */
         size_t bucket_num_; // number of buckets in the hash table
         size_t array_size_; // fixed array size for each bucket

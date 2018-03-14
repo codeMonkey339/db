@@ -9,6 +9,56 @@
 
 namespace cmudb {
 
+    TEST(ExtendiblehashTest, OverflowTest1){
+        ExtendibleHash<int, std::string> *test =
+                new ExtendibleHash<int, std::string>(2);
+
+        test->Insert(1, "a");
+        test->Insert(2, "b");
+        test->Insert(4, "d");
+        test->Insert(5, "e");
+        test->Insert(9, "i");
+
+        EXPECT_EQ(1, test->GetLocalDepth(1));
+        std::string result;
+        test->Find(9, result);
+        EXPECT_EQ("i", result);
+    }
+
+    TEST(ExtendiblehashTest, OverflowTest2){
+        ExtendibleHash<int, std::string> *test =
+                new ExtendibleHash<int, std::string>(2);
+
+        test->Insert(1, "a");
+        test->Insert(2, "b");
+        test->Insert(4, "d");
+        test->Insert(5, "e");
+        test->Insert(6, "f");
+        test->Insert(9, "i");
+
+        EXPECT_EQ(1, test->GetLocalDepth(1));
+        std::string result;
+        test->Find(9, result);
+        EXPECT_EQ("i", result);
+    }
+
+    TEST(ExtendiblehashTest, RemoveTest){
+        ExtendibleHash<int, std::string> *test =
+                new ExtendibleHash<int, std::string>(2);
+        test->Insert(1, "a");
+        test->Insert(2, "b");
+        test->Insert(4, "d");
+        test->Insert(5, "e");
+        test->Insert(6, "f");
+        test->Insert(9, "i");
+        test->Remove(9);
+
+        std::string result;
+        test->Find(9, result);
+        EXPECT_EQ("", result);
+    }
+
+
     TEST(ExtendibleHashTest, SampleTest) {
         // set leaf size as 2
         ExtendibleHash<int, std::string> *test =
