@@ -185,7 +185,8 @@ namespace cmudb {
             return false;
         }else{
             b->local_depth++;
-            Bucket *next = new Bucket(b->local_depth, array_size_, b->id*2+1);
+            Bucket *next = new Bucket(b->local_depth, array_size_, b->id +
+                    bucket_num_ / 2);
             if(RedistKeys(b, next, b->id) > 0){
                 // splitting is successful
                 buckets->at(next->id) = next;
@@ -227,7 +228,7 @@ namespace cmudb {
                 }
             }
         }
-
+        bucket_num_ *= 2;
         delete(buckets);
         buckets = new_b;
     };
@@ -438,7 +439,9 @@ namespace cmudb {
                 }else{
                     Node *prev = n->prev;
                     prev->next = n->next;
-                    n->next->prev = prev;
+                    if (n->next != nullptr){
+                        n->next->prev = prev;
+                    }
                     delete(n);
                     return true;
                 }
