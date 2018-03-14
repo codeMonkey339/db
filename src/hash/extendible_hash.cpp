@@ -101,7 +101,10 @@ namespace cmudb {
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetGlobalDepth() const {
-        return global_depth_;
+        write_lock.lock();
+        int res = global_depth_;
+        write_lock.unlock();
+        return res;
     }
 
 /*
@@ -110,8 +113,11 @@ namespace cmudb {
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetLocalDepth(int bucket_id) const {
+        write_lock.lock();
         Bucket *b = buckets->at(bucket_id);
-        return b->local_depth;
+        int res = b->local_depth;
+        write_lock.unlock();
+        return res;
     }
 
 /*
@@ -119,7 +125,10 @@ namespace cmudb {
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetNumBuckets() const {
-        return bucket_num_;
+        write_lock.lock();
+        int res = bucket_num_;
+        write_lock.unlock();
+        return res;
     }
 
     /**
@@ -132,8 +141,11 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Find(const K &key, V &value) {
+        write_lock.lock();
         Bucket *bucket = FindBucket(key);
-        return FindValue(bucket, key, value);
+        bool res =FindValue(bucket, key, value);
+        write_lock.unlock();
+        return res;
     }
 
     /**
@@ -145,8 +157,11 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Remove(const K &key) {
+        write_lock.lock();
+        //todo: blocking on held on read lock
         Bucket *bucket = FindBucket(key);
         bool removed = bucket->remove(key);
+        write_lock.unlock();
         if (removed){
             return true;
         }else{
@@ -165,6 +180,7 @@ namespace cmudb {
      */
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Insert(const K &key, const V &value) {
+        std::lock_guard<std::mutex> lg(write_lock);
         Bucket *b = FindBucket(key);
         bool added = b->add(key, value);
         if (added){
@@ -181,7 +197,6 @@ namespace cmudb {
     template<typename K,typename V>
     bool ExtendibleHash<K,V>::SplitBucket(const K &key){
         Bucket *b = FindBucket(key);
-        //todo: when overflow happens, local_depth == global_depth. How?
         if (b->local_depth == (size_t)GetGlobalDepth()){
             return false;
         }else{
@@ -407,7 +422,7 @@ namespace cmudb {
         b2_o->squashBuckets();
         return nMoved;
     }
-    
+
 
     template<typename K, typename V>
     void ExtendibleHash<K,V>::Bucket::squashBuckets() {

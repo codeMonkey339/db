@@ -40,9 +40,6 @@ namespace cmudb {
         bool Remove(const K &key) override;
 
         void Insert(const K &key, const V &value) override;
-
-        /* for testing purpose only */
-
     protected:
     private:
 
@@ -96,6 +93,7 @@ namespace cmudb {
         size_t array_size_; // fixed array size for each bucket
         size_t global_depth_; // global # of bits used for selecting index
         std::vector<Bucket*> *buckets; //the vector to hold the array of buckets
+        mutable std::mutex write_lock;
 
         /* section for private methods */
         void Expand(const K &key);
