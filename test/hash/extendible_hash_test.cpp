@@ -9,6 +9,19 @@
 
 namespace cmudb {
 
+    TEST(ExtendibleHashTest, ExpandTest){
+        ExtendibleHash<int, int> *test =
+                new ExtendibleHash<int, int>(2);
+        test->Insert(0,0);
+        test->Insert(2,2);
+        test->Insert(1,1);
+        EXPECT_EQ(1, test->GetGlobalDepth());
+
+        int result;
+        test->Find(1, result);
+        EXPECT_EQ(1, result);
+    }
+
     TEST(ExtendiblehashTest, OverflowTest1){
         ExtendibleHash<int, std::string> *test =
                 new ExtendibleHash<int, std::string>(2);

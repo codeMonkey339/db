@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cstdlib>
+#include <mutex>
 #include <vector>
 #include <string>
 
@@ -105,6 +106,10 @@ namespace cmudb {
         Bucket *FindBucket(const K &key);
         //todo: remove this comparison method here
         bool comKeys(const K &k1, const K &k2);
+        int getGlobalDepth() const;
+        int getLocalDepth(int bucket_id) const;
+        int getNumBuckets() const;
+        void insert(const K &key, const V &value);
 
     };
 } // namespace cmudb

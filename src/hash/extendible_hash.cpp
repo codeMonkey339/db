@@ -101,22 +101,36 @@ namespace cmudb {
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetGlobalDepth() const {
-        write_lock.lock();
-        int res = global_depth_;
-        write_lock.unlock();
+        std::lock_guard<std::mutex> lg(write_lock);
+        int res = getGlobalDepth();
         return res;
     }
 
+    /**
+     * private method to avoid introducing recursive mutexes
+     * @tparam K
+     * @tparam V
+     * @return
+     */
+    template<typename K, typename V>
+    int ExtendibleHash<K,V>::getGlobalDepth() const {
+        return global_depth_;
+    }
 /*
  * helper function to return local depth of one specific bucket
  * NOTE: you must implement this function in order to pass test
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetLocalDepth(int bucket_id) const {
-        write_lock.lock();
+        std::lock_guard<std::mutex> lg(write_lock);
+        int res = getLocalDepth(bucket_id);
+        return res;
+    }
+
+    template<typename K, typename V>
+    int ExtendibleHash<K,V>::getLocalDepth(int bucket_id) const {
         Bucket *b = buckets->at(bucket_id);
         int res = b->local_depth;
-        write_lock.unlock();
         return res;
     }
 
@@ -125,11 +139,17 @@ namespace cmudb {
  */
     template<typename K, typename V>
     int ExtendibleHash<K, V>::GetNumBuckets() const {
-        write_lock.lock();
-        int res = bucket_num_;
-        write_lock.unlock();
+        std::lock_guard<std::mutex> lg(write_lock);
+        int res = getNumBuckets();
         return res;
     }
+
+
+    template<typename K, typename V>
+    int ExtendibleHash<K,V>::getNumBuckets() const {
+        return bucket_num_;
+    }
+
 
     /**
      * lookup function fo find value associated with unqiue key/value pairs
@@ -141,10 +161,9 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Find(const K &key, V &value) {
-        write_lock.lock();
+        std::lock_guard<std::mutex> lg(write_lock);
         Bucket *bucket = FindBucket(key);
         bool res =FindValue(bucket, key, value);
-        write_lock.unlock();
         return res;
     }
 
@@ -157,11 +176,9 @@ namespace cmudb {
      */
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Remove(const K &key) {
-        write_lock.lock();
-        //todo: blocking on held on read lock
+        std::lock_guard<std::mutex> lg(write_lock);
         Bucket *bucket = FindBucket(key);
         bool removed = bucket->remove(key);
-        write_lock.unlock();
         if (removed){
             return true;
         }else{
@@ -181,6 +198,13 @@ namespace cmudb {
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Insert(const K &key, const V &value) {
         std::lock_guard<std::mutex> lg(write_lock);
+        std::cout << "inserting " << key << std::endl;
+        insert(key, value);
+        std::cout << "inserted " << key << std::endl;
+    }
+
+    template<typename K, typename V>
+    void ExtendibleHash<K,V>::insert(const K &key, const V &value) {
         Bucket *b = FindBucket(key);
         bool added = b->add(key, value);
         if (added){
@@ -189,15 +213,16 @@ namespace cmudb {
             if (!SplitBucket(key)){
                 Expand(key);
             }
-            Insert(key, value);
+            insert(key, value);
         }
     }
+
 
     // private methods
     template<typename K,typename V>
     bool ExtendibleHash<K,V>::SplitBucket(const K &key){
         Bucket *b = FindBucket(key);
-        if (b->local_depth == (size_t)GetGlobalDepth()){
+        if (b->local_depth == (size_t)getGlobalDepth()){
             return false;
         }else{
             // there exists unused bucket for expanding
@@ -241,6 +266,8 @@ namespace cmudb {
                         // splitting is successful
                         new_b->push_back(next);
                     }else{
+                        //todo: 1. add entry to the place pointing to prev
+                        // bucket. 2. Need to separate Expand and Overflow
                         delete(next);
                         b->local_depth--;
                         next = new Bucket(b->local_depth, array_size_, b->id);
@@ -288,7 +315,7 @@ namespace cmudb {
             (const K
                                                                   &key) {
         size_t hash = HashKey(key);
-        size_t bucketIdx = GetBucketIndex(hash, GetGlobalDepth());
+        size_t bucketIdx = GetBucketIndex(hash, getGlobalDepth());
         Bucket *bucket = buckets->at(bucketIdx);
         return bucket;
     }
@@ -398,7 +425,7 @@ namespace cmudb {
             Node *head = b1->head();
             while (head != NULL){
                 size_t idx = GetBucketIndex(HashKey(head->p->first),
-                                            GetGlobalDepth());
+                                            getGlobalDepth());
                 if (idx != i){
                     if (!b2->add(head->p->first, head->p->second)){
                         Bucket *next = new Bucket(b2->local_depth,
