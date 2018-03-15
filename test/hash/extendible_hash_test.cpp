@@ -15,14 +15,14 @@ namespace cmudb {
         test->Insert(0,0);
         test->Insert(2,2);
         test->Insert(1,1);
-        EXPECT_EQ(1, test->GetGlobalDepth());
+        EXPECT_EQ(2, test->GetGlobalDepth());
 
         int result;
         test->Find(1, result);
         EXPECT_EQ(1, result);
     }
 
-    TEST(ExtendiblehashTest, OverflowTest1){
+    TEST(ExtendiblehashTest, ExpandTest2){
         ExtendibleHash<int, std::string> *test =
                 new ExtendibleHash<int, std::string>(2);
 
@@ -32,28 +32,15 @@ namespace cmudb {
         test->Insert(5, "e");
         test->Insert(9, "i");
 
-        EXPECT_EQ(1, test->GetLocalDepth(1));
+        EXPECT_EQ(3, test->GetGlobalDepth());
+        EXPECT_EQ(3, test->GetLocalDepth(1));
+        EXPECT_EQ(1, test->GetLocalDepth(0));
+        EXPECT_EQ(3, test->GetLocalDepth(5));
         std::string result;
         test->Find(9, result);
         EXPECT_EQ("i", result);
     }
 
-    TEST(ExtendiblehashTest, OverflowTest2){
-        ExtendibleHash<int, std::string> *test =
-                new ExtendibleHash<int, std::string>(2);
-
-        test->Insert(1, "a");
-        test->Insert(2, "b");
-        test->Insert(4, "d");
-        test->Insert(5, "e");
-        test->Insert(6, "f");
-        test->Insert(9, "i");
-
-        EXPECT_EQ(1, test->GetLocalDepth(1));
-        std::string result;
-        test->Find(9, result);
-        EXPECT_EQ("i", result);
-    }
 
     TEST(ExtendiblehashTest, RemoveTest){
         ExtendibleHash<int, std::string> *test =

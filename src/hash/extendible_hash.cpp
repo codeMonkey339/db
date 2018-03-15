@@ -198,9 +198,9 @@ namespace cmudb {
     template<typename K, typename V>
     void ExtendibleHash<K, V>::Insert(const K &key, const V &value) {
         std::lock_guard<std::mutex> lg(write_lock);
-        std::cout << "inserting " << key << std::endl;
+        //std::cout << "inserting " << key << std::endl;
         insert(key, value);
-        std::cout << "inserted " << key << std::endl;
+        //std::cout << "inserted " << key << std::endl;
     }
 
     template<typename K, typename V>
@@ -232,14 +232,11 @@ namespace cmudb {
             if(RedistKeys(b, next, b->id) > 0){
                 // splitting is successful
                 buckets->at(next->id) = next;
+                return true;
             }else{
                 // splitting will only create an empty bucket
-                delete(next);
-                b->local_depth--;
-                next = new Bucket(b->local_depth, array_size_, b->id);
-                AddOverflowBucket(b, next);
+                return false;
             }
-            return true;
         }
     }
 
@@ -266,12 +263,7 @@ namespace cmudb {
                         // splitting is successful
                         new_b->push_back(next);
                     }else{
-                        //todo: 1. add entry to the place pointing to prev
-                        // bucket. 2. Need to separate Expand and Overflow
-                        delete(next);
-                        b->local_depth--;
-                        next = new Bucket(b->local_depth, array_size_, b->id);
-                        AddOverflowBucket(b, next);
+                        new_b->push_back(b);
                     }
                 }
             }
