@@ -260,10 +260,17 @@ namespace cmudb {
                     b->local_depth++;
                     Bucket *next = new Bucket(b->local_depth, array_size_, i);
                     if(RedistKeys(b, next, b->id) > 0){
-                        // splitting is successful
+                        // logic is not rigorous, what if all keys in a
+                        // bucket moved to another bucket
                         new_b->push_back(next);
                     }else{
-                        new_b->push_back(b);
+                        size_t bucket_id = GetBucketIndex(HashKey(key),global_depth_);
+                        if (bucket_id != b->id){
+                            new_b->push_back(next);
+                        }else{
+                            delete(next);
+                            new_b->push_back(b);
+                        }
                     }
                 }
             }
@@ -420,11 +427,7 @@ namespace cmudb {
                                             getGlobalDepth());
                 if (idx != i){
                     if (!b2->add(head->p->first, head->p->second)){
-                        Bucket *next = new Bucket(b2->local_depth,
-                                                  b2->arr_size, b2->id);
-                        AddOverflowBucket(b2, next);
-                        b2 = next;
-                        b2->add(head->p->first, head->p->second);
+                        std::cout<<"Exception: overflow in RedisKeys"<<std::endl;
                     };
                     nMoved++;
                 }

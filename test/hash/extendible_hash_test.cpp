@@ -15,7 +15,7 @@ namespace cmudb {
         test->Insert(0,0);
         test->Insert(2,2);
         test->Insert(1,1);
-        EXPECT_EQ(2, test->GetGlobalDepth());
+        EXPECT_EQ(1, test->GetGlobalDepth());
 
         int result;
         test->Find(1, result);
@@ -41,6 +41,23 @@ namespace cmudb {
         EXPECT_EQ("i", result);
     }
 
+    TEST(ExtendibleHashTest, ExpandTest3){
+        ExtendibleHash<int, int> *test =
+                new ExtendibleHash<int, int>(2);
+        test->Insert(1,1);
+        test->Insert(3,3);
+        test->Insert(0,0);
+        test->Insert(2,2);
+        EXPECT_EQ(1, test->GetGlobalDepth());
+
+        delete(test);
+        ExtendibleHash<int,int> *test2 = new ExtendibleHash<int, int>(2);
+        test->Insert(0,0);
+        test->Insert(2,2);
+        test->Insert(1,1);
+        test->Insert(3,3);
+        EXPECT_EQ(1, test2->GetGlobalDepth());
+    }
 
     TEST(ExtendiblehashTest, RemoveTest){
         ExtendibleHash<int, std::string> *test =
