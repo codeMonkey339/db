@@ -235,6 +235,7 @@ namespace cmudb {
                 return true;
             }else{
                 // splitting will only create an empty bucket
+                delete(next);
                 return false;
             }
         }
@@ -316,7 +317,13 @@ namespace cmudb {
         size_t hash = HashKey(key);
         size_t bucketIdx = GetBucketIndex(hash, getGlobalDepth());
         Bucket *bucket = buckets->at(bucketIdx);
-        return bucket;
+        if (bucket->id != bucketIdx){
+            Bucket *next = new Bucket(bucket->local_depth, array_size_, bucketIdx);
+            buckets->at(bucketIdx) = next;
+            return next;
+        }else{
+            return bucket;
+        }
     }
 
     /**
