@@ -206,6 +206,11 @@ namespace cmudb {
     template<typename K, typename V>
     void ExtendibleHash<K,V>::insert(const K &key, const V &value) {
         Bucket *b = FindBucket(key);
+        size_t id = GetBucketIndex(HashKey(key), getGlobalDepth());
+        if (b->id != id){
+            // bucket position is available, but bucket not created
+            b = insertNewBucket(key);
+        }
         bool added = b->add(key, value);
         if (added){
             return;
@@ -317,14 +322,28 @@ namespace cmudb {
         size_t hash = HashKey(key);
         size_t bucketIdx = GetBucketIndex(hash, getGlobalDepth());
         Bucket *bucket = buckets->at(bucketIdx);
-        if (bucket->id != bucketIdx){
-            Bucket *next = new Bucket(bucket->local_depth, array_size_, bucketIdx);
-            buckets->at(bucketIdx) = next;
-            return next;
-        }else{
-            return bucket;
-        }
+        return bucket;
     }
+
+    /**
+     * Bucket position is available, but the bucket is not created yet.
+     * Insert a new bucket in the correct position
+     * @tparam K
+     * @tparam V
+     * @param key
+     * @return
+     */
+    template<typename K, typename V>
+    typename ExtendibleHash<K,V>::Bucket *ExtendibleHash<K,
+            V>::insertNewBucket(const K &key) {
+        size_t hash = HashKey(key);
+        size_t bucketIdx = GetBucketIndex(hash, getGlobalDepth());
+        Bucket *bucket = buckets->at(bucketIdx);
+        Bucket *next = new Bucket(bucket->local_depth, array_size_, bucketIdx);
+        buckets->at(bucketIdx) = next;
+        return next;
+    }
+
 
     /**
      * add a new pair of key/value pair in the Bucket.

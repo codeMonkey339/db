@@ -110,6 +110,6 @@ namespace cmudb {
         int getLocalDepth(int bucket_id) const;
         int getNumBuckets() const;
         void insert(const K &key, const V &value);
-
+        Bucket *insertNewBucket(const K &key);
     };
 } // namespace cmudb
