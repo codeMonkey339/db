@@ -2,16 +2,21 @@
  * LRU implementation
  */
 #include <queue>
+#include <memory>
 #include "buffer/lru_replacer.h"
 #include "page/page.h"
 
 namespace cmudb {
 
     template<typename T>
-    LRUReplacer<T>::LRUReplacer() {}
+    LRUReplacer<T>::LRUReplacer() {
+        //entries = new ExtendibleHash<T, int>(2);
+    }
 
     template<typename T>
-    LRUReplacer<T>::~LRUReplacer() {}
+    LRUReplacer<T>::~LRUReplacer() {
+       // delete(entries);
+    }
 
 /**
  * Insert into LRU. When duplicate keys are inserted, then the element should
@@ -30,6 +35,8 @@ namespace cmudb {
         if (exists(value)){
             erase(value);
         }
+        //entries->Insert(value, 1);
+        entries.insert({value, 1});
         elems.push_back(value);
     }
 
@@ -48,11 +55,13 @@ namespace cmudb {
 
     template<typename T>
     bool LRUReplacer<T>::victim(T &value) {
-        if (!exists(value)){
+        if (entries.size() == 0){
             return false;
         }else{
             value = elems.front();
             elems.pop_front();
+            //entries->Remove(value);
+            entries.erase(value);
             return true;
         }
     }
@@ -90,6 +99,8 @@ namespace cmudb {
                 backup.pop_back();
                 elems.push_front(ele);
             }
+            //entries->Remove(value);
+            entries.erase(value);
             return true;
         }
     }
@@ -112,16 +123,13 @@ namespace cmudb {
      */
     template<typename T>
     bool LRUReplacer<T>::exists(const T &value){
-        typename std::deque<T>::iterator itr = elems.begin();
-        while (itr != elems.end()){
-            T val = *itr;
-            if (memcpy(&val, &value, sizeof(T)) == 0){
-                return true;
-            }else{
-                itr++;
-            }
+        //int existed;
+        //if (entries->Find(value, existed)){
+        if (entries.find(value) != entries.end()){
+            return true;
+        }else{
+            return false;
         }
-        return false;
     }
 
 // test only

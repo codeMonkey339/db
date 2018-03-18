@@ -10,6 +10,8 @@
 #pragma once
 
 #include <deque>
+#include <memory>
+#include <unordered_map>
 
 #include "buffer/replacer.h"
 #include "hash/extendible_hash.h"
@@ -33,8 +35,10 @@ namespace cmudb {
         size_t Size();
 
     private:
-        //todo: create a hashtable here to speed searching
-        std::deque<T> elems;
+        //todo: why deque doesn't have to be newed?
+        std::deque<T> elems; // FIFO deque to store elements
+        //ExtendibleHash<T, int> *entries; // record existing elements
+        std::unordered_map<T, int> entries;
         std::mutex lock;
 
         /* section for private methods */
