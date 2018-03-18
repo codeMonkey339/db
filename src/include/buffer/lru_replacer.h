@@ -9,28 +9,40 @@
 
 #pragma once
 
+#include <deque>
+
 #include "buffer/replacer.h"
 #include "hash/extendible_hash.h"
 
 namespace cmudb {
 
-template <typename T> class LRUReplacer : public Replacer<T> {
-public:
-  // do not change public interface
-  LRUReplacer();
+    template<typename T>
+    class LRUReplacer : public Replacer<T> {
+    public:
+        // do not change public interface
+        LRUReplacer();
 
-  ~LRUReplacer();
+        ~LRUReplacer();
 
-  void Insert(const T &value);
+        void Insert(const T &value);
 
-  bool Victim(T &value);
+        bool Victim(T &value);
 
-  bool Erase(const T &value);
+        bool Erase(const T &value);
 
-  size_t Size();
+        size_t Size();
 
-private:
-  // add your member variables here
-};
+    private:
+        //todo: create a hashtable here to speed searching
+        std::deque<T> elems;
+        std::mutex lock;
+
+        /* section for private methods */
+        bool exists(const T &value);
+        void insert(const T &value);
+        bool victim(T &value);
+        bool erase(const T &value);
+        size_t size();
+    };
 
 } // namespace cmudb
