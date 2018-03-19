@@ -11,10 +11,11 @@
 
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include "buffer/replacer.h"
-#include "hash/extendible_hash.h"
+#include "hash/hash_table.h"
 
 namespace cmudb {
 
@@ -37,8 +38,8 @@ namespace cmudb {
     private:
         //todo: why deque doesn't have to be newed?
         std::deque<T> elems; // FIFO deque to store elements
-        //ExtendibleHash<T, int> *entries; // record existing elements
-        std::unordered_map<T, int> entries;
+        HashTable<T, int> *entries; // record existing elements
+        //std::unordered_map<T, int> entries;
         std::mutex lock;
 
         /* section for private methods */

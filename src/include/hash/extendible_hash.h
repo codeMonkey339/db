@@ -24,7 +24,6 @@ namespace cmudb {
         // constructor
         ExtendibleHash(size_t size);
         ~ExtendibleHash();
-
         // helper function to generate hash addressing
         size_t HashKey(const K &key);
 

@@ -10,12 +10,12 @@ namespace cmudb {
 
     template<typename T>
     LRUReplacer<T>::LRUReplacer() {
-        //entries = new ExtendibleHash<T, int>(2);
+        entries = new ExtendibleHash<T, int>(2);
     }
 
     template<typename T>
     LRUReplacer<T>::~LRUReplacer() {
-       // delete(entries);
+       delete(entries);
     }
 
 /**
@@ -35,8 +35,8 @@ namespace cmudb {
         if (exists(value)){
             erase(value);
         }
-        //entries->Insert(value, 1);
-        entries.insert({value, 1});
+        entries->Insert(value, 1);
+        //entries.insert({value, 1});
         elems.push_back(value);
     }
 
@@ -55,13 +55,15 @@ namespace cmudb {
 
     template<typename T>
     bool LRUReplacer<T>::victim(T &value) {
-        if (entries.size() == 0){
+        //if (entries.size() == 0){
+        int found;
+        if (!entries->Find(value, found)){
             return false;
         }else{
             value = elems.front();
             elems.pop_front();
-            //entries->Remove(value);
-            entries.erase(value);
+            entries->Remove(value);
+            //entries.erase(value);
             return true;
         }
     }
@@ -99,8 +101,8 @@ namespace cmudb {
                 backup.pop_back();
                 elems.push_front(ele);
             }
-            //entries->Remove(value);
-            entries.erase(value);
+            entries->Remove(value);
+            //entries.erase(value);
             return true;
         }
     }
@@ -123,9 +125,9 @@ namespace cmudb {
      */
     template<typename T>
     bool LRUReplacer<T>::exists(const T &value){
-        //int existed;
-        //if (entries->Find(value, existed)){
-        if (entries.find(value) != entries.end()){
+        int existed;
+        if (entries->Find(value, existed)){
+        //if (entries.find(value) != entries.end()){
             return true;
         }else{
             return false;
