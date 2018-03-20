@@ -55,9 +55,7 @@ namespace cmudb {
 
     template<typename T>
     bool LRUReplacer<T>::victim(T &value) {
-        //if (entries.size() == 0){
-        int found;
-        if (!entries->Find(value, found)){
+        if (elems.size() == 0){
             return false;
         }else{
             value = elems.front();

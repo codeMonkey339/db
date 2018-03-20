@@ -607,7 +607,6 @@ namespace cmudb {
     template
     class ExtendibleHash<Page *, std::list<Page *>::iterator>;
 
-    //todo: find out the meaning of such usage?
 // test purpose
     template
     class ExtendibleHash<int, std::string>;
@@ -617,4 +616,8 @@ namespace cmudb {
 
     template
     class ExtendibleHash<int, int>;
+
+    //todo: find out the meaning of these parameterized templates?
+    template
+    class ExtendibleHash<Page*, int>;
 } // namespace cmudb
