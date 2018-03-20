@@ -15,8 +15,7 @@
 #include <unordered_map>
 
 #include "buffer/replacer.h"
-#include "hash/hash_table.h"
-
+#include "hash/extendible_hash.h"
 namespace cmudb {
 
     template<typename T>
