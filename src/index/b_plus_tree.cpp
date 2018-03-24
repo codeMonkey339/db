@@ -73,8 +73,8 @@ namespace cmudb {
             BPlusTreeInternalPage *internalPage =
                     static_cast<BPlusTreeInternalPage*>(page->GetData());
             ValueType value = internalPage->Lookup(key, comparator_);
-            page = buffer_pool_manager_->FetchPage(static_cast<RID
-                                                           >(value).GetPageId());
+            page = buffer_pool_manager_->FetchPage(static_cast<RID>(value)
+                                                           .GetPageId());
             return getValue(page, key, result, trans);
         }
     }
@@ -82,41 +82,109 @@ namespace cmudb {
 /*****************************************************************************
  * INSERTION
  *****************************************************************************/
-/*
- * Insert constant key & value pair into b+ tree
- * if current tree is empty, start new tree, update root page id and insert
- * entry, otherwise insert into leaf page.
- * @return: since we only support unique key, if user try to insert duplicate
- * keys return false, otherwise return true.
- */
+    /**
+     * Insert constant key & value pair into b+ tree
+     * if current tree is empty, start new tree, update root page id and insert
+     * entry, otherwise insert into leaf page.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param value
+     * @param transaction
+     * @return: since we only support unique key, if user try to insert duplicate
+     * keys return false, otherwise return true.
+     */
     INDEX_TEMPLATE_ARGUMENTS
     bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
                                 Transaction *transaction) {
-        return false;
+        if (root_page_id_ == INVALID_PAGE_ID){
+            StartNewTree(key, value);
+            return true;
+        }else{
+            return InsertIntoLeaf(key, value, transaction);
+        }
     }
 /*
- * Insert constant key & value pair into an empty tree
- * User needs to first ask for new page from buffer pool manager(NOTICE: throw
- * an "out of memory" exception if returned value is nullptr), then update b+
- * tree's root page id and insert entry directly into leaf page.
  */
+    /**
+     * Insert constant key & value pair into an empty tree
+     * User needs to first ask for new page from buffer pool manager(NOTICE:
+     * throw an "out of memory" exception if returned value is nullptr), then
+     * update b+ tree's root page id and insert entry directly into leaf page.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param value
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void
-    BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {}
+    BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
+        Page *root = buffer_pool_manager_->NewPage(root_page_id_);
+        if (root == nullptr){
+            throw std::bad_alloc();
+        }
+        //todo: what is the behavior for starting a new tree?
+
+    }
 
 /*
- * Insert constant key & value pair into leaf page
- * User needs to first find the right leaf page as insertion target, then look
- * through leaf page to see whether insert key exist or not. If exist, return
- * immdiately, otherwise insert entry. Remember to deal with split if necessary.
- * @return: since we only support unique key, if user try to insert duplicate
- * keys return false, otherwise return true.
  */
+    /**
+     * Insert constant key & value pair into leaf page
+     * User needs to first find the right leaf page as insertion target, then
+     * look through leaf page to see whether insert key exist or not. If
+     * exist, return immediately, otherwise insert entry. Remember to deal
+     * with split if necessary.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param value
+     * @param transaction
+     * @return: since we only support unique key, if user try to insert
+     * duplicate keys return false, otherwise return true.
+     */
     INDEX_TEMPLATE_ARGUMENTS
     bool
     BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
                                    Transaction *transaction) {
-        return false;
+        if (root_page_id_ == nullptr){
+            return false;
+        }
+        Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+        BPlusTreeLeafPage *leaf = getLeafPage(key, page, transaction);
+        if (leaf->KeyIndex(key, comparator_) < 0){
+            if(leaf->GetSize() == leaf->GetMaxSize()){
+                //todo: redistribute
+            }else{
+                leaf->Insert(key, value, comparator_);
+            }
+            return true;
+        }else{
+            return false;
+        }
+   }
+
+    INDEX_TEMPLATE_ARGUMENTS
+    BPlusTreeLeafPage*
+    BPLUSTREE_TYPE::getLeafPage(const KeyType &key, Page *page,
+                                Transaction *transaction) {
+        BPlusTreePage *treePage = static_cast<BPlusTreePage*>(page->GetData());
+        if (treePage->IsLeafPage()){
+            BPlusTreeLeafPage *leafPage = static_cast<BPlusTreeLeafPage*>
+            (treePage);
+            return leafPage;
+        }else{
+            BPlusTreeInternalPage *internalPage =
+                    static_cast<BPlusTreeInternalPage*>(page->GetData());
+            ValueType value = internalPage->Lookup(key, comparator_);
+            page = buffer_pool_manager_->FetchPage(static_cast<RID>(value)
+                                                           .GetPageId());
+            return getLeafPage(key, page, transaction);
+        }
+
     }
 
 /*

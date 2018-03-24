@@ -176,10 +176,6 @@ namespace cmudb {
      */
     Page *BufferPoolManager::NewPage(page_id_t &page_id) {
         Page *page;
-        if (page_id == INVALID_PAGE_ID){
-            return nullptr;
-        }
-
         if (!free_list_->empty()){
             page = free_list_->front();
             free_list_->pop_front();

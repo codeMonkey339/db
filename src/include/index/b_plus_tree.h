@@ -92,9 +92,13 @@ namespace cmudb {
         bool AdjustRoot(BPlusTreePage *node);
 
         void UpdateRootPageId(int insert_record = false);
+
         /********************** helper methods ********************************/
         bool getValue(Page *page, const KeyType &key, std::vector<ValueType>
         &result, Transaction *trans);
+
+        BPlusTreeLeafPage *getLeafPage(const KeyType &key, Page *page,
+                                       Transaction *transaction);
 
         // member variable
         std::string index_name_;
