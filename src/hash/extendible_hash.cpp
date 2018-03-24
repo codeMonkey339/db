@@ -617,7 +617,6 @@ namespace cmudb {
     template
     class ExtendibleHash<int, int>;
 
-    //todo: find out the meaning of these parameterized templates?
     template
     class ExtendibleHash<Page*, int>;
 } // namespace cmudb
