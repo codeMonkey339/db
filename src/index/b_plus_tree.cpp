@@ -115,6 +115,7 @@ namespace cmudb {
             throw std::bad_alloc();
         }else{
             LEAFPAGE_TYPE *leaf = reinterpret_cast<LEAFPAGE_TYPE*>(root->GetData());
+            leaf->Init(root_page_id_, INVALID_PAGE_ID);
             leaf->Insert(key, value, comparator_);
         }
     }
@@ -211,15 +212,17 @@ namespace cmudb {
             LEAFPAGE_TYPE *old_page = reinterpret_cast<LEAFPAGE_TYPE*>(node);
             LEAFPAGE_TYPE *new_page =
                     reinterpret_cast<LEAFPAGE_TYPE*>(page->GetData());
+            new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
             KeyType first_key = new_page->KeyAt(0);
             InsertIntoParent(old_page, first_key, new_page, nullptr);
-            return new_page;
+            return reinterpret_cast<N*>(new_page);
         }else{
             INTERNALPAGE_TYPE *old_page =
                     reinterpret_cast<INTERNALPAGE_TYPE*>(node);
             INTERNALPAGE_TYPE *new_page =
                     reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
+            new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
             KeyType first_key = new_page->KeyAt(0);
             InsertIntoParent(old_page, first_key, new_page, nullptr);
@@ -227,20 +230,67 @@ namespace cmudb {
         }
     }
 
-/*
- * Insert key & value pair into internal page after split
- * @param   old_node      input page from split() method
- * @param   key
- * @param   new_node      returned page from split() method
- * User needs to first find the parent page of old_node, parent node must be
- * adjusted to take info of new_node into account. Remember to deal with split
- * recursively if necessary.
- */
+    /**
+     * User needs to first find the parent page of old_node, parent node must be
+     * adjusted to take info of new_node into account. Remember to deal with
+     * split recursively if necessary.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param   old_node      input page from split() method
+     * @param   key
+     * @param   new_node      returned page from split() method
+     * @param transaction
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                           const KeyType &key,
                                           BPlusTreePage *new_node,
-                                          Transaction *transaction) {}
+                                          Transaction *transaction) {
+        page_id_t  id = old_node->GetParentPageId();
+        Page *page = buffer_pool_manager_->FetchPage(id);
+        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
+        (page->GetData());
+        if (parent->GetSize() >= (parent->GetMaxSize() - 1)){
+            if (!parent->IsRootPage()){
+                INTERNALPAGE_TYPE *parent_sibling = Split
+                        (parent);
+                page_id_t  grand_parent_id = parent->GetParentPageId();
+                Page *grand_parent_page = buffer_pool_manager_->FetchPage
+                        (grand_parent_id);
+                INTERNALPAGE_TYPE *grand_parent =
+                        reinterpret_cast<INTERNALPAGE_TYPE*>
+                        (grand_parent_page->GetData());
+                ValueType old_grand_parent_value = grand_parent->Lookup
+                        (parent->KeyAt(1), comparator_);
+                int new_grand_parent_key_id = grand_parent->ValueIndex
+                                                      (old_grand_parent_value) + 1;
+                KeyType new_grand_parent_key = grand_parent->KeyAt
+                        (new_grand_parent_key_id);
+                if (comparator_(key, new_grand_parent_key) < 0){
+                    ValueType old_value = parent->Lookup(key, comparator_);
+                    parent->InsertNodeAfter(old_value, key, new_node->GetPageId());
+                }else{
+                    ValueType old_value = parent_sibling->Lookup(key,
+                                                                 comparator_);
+                    parent_sibling->InsertNodeAfter(old_value, key, new_node
+                            ->GetPageId());
+                }
+            }else{
+                Page *new_page = buffer_pool_manager_->NewPage(root_page_id_);
+                INTERNALPAGE_TYPE *new_root_page =
+                        reinterpret_cast<INTERNALPAGE_TYPE*>
+                        (new_page->GetData());
+                new_root_page->Init(root_page_id_, INVALID_PAGE_ID);
+                //todo: Insert the first pair into a page
+                new_root_page->InsertNodeAfter(parent->GetPageId(), key,
+                                               new_node->GetPageId());
+            }
+        }else{
+            ValueType old_value = parent->Lookup(key, comparator_);
+            parent->InsertNodeAfter(old_value, key, new_node->GetPageId());
+        }
+    }
 
 /*****************************************************************************
  * REMOVE
