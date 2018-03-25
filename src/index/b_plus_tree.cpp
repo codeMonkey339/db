@@ -295,15 +295,53 @@ namespace cmudb {
 /*****************************************************************************
  * REMOVE
  *****************************************************************************/
-/*
- * Delete key & value pair associated with input key
- * If current tree is empty, return immdiately.
- * If not, User needs to first find the right leaf page as deletion target, then
- * delete entry from leaf page. Remember to deal with redistribute or merge if
- * necessary.
- */
+    /**
+     * Delete key & value pair associated with input key
+     * If current tree is empty, return immediately.
+     * If not, User needs to first find the right leaf page as deletion
+     * target, then delete entry from leaf page. Remember to deal with
+     * redistribute or merge if necessary.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param transaction
+     */
     INDEX_TEMPLATE_ARGUMENTS
-    void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+    void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
+        if (root_page_id_ == INVALID_PAGE_ID){
+            return;
+        }
+        Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+        LEAFPAGE_TYPE *leaf = getLeafPage(key, page, transaction);
+        leaf->RemoveAndDeleteRecord(key, comparator_);
+        if (leaf->GetSize() < (leaf->GetMaxSize() + 1) / 2){
+
+        }
+    }
+
+    INDEX_TEMPLATE_ARGUMENTS
+    template<typename N>
+    void
+    BPLUSTREE_TYPE::coalesceOrRedistRecursive(N *node,
+                                              Transaction *transaction) {
+        if (CoalesceOrRedistribute(node, transaction)){
+            BPlusTreePage* page = reinterpret_cast<BPlusTreePage*>(node);
+            page_id_t parent_id = page->GetParentPageId();
+            Page *parent = buffer_pool_manager_->FetchPage(parent_id);
+            INTERNALPAGE_TYPE *parent_page =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(parent->GetData());
+            if (!parent_page->IsRootPage()){
+                int key_id = parent_page->ValueIndex(page->GetPageId());
+                parent_page->Remove(key_id);
+                if (parent_page->GetSize() < (parent_page->GetMaxSize()+1)/2){
+                    coalesceOrRedistRecursive(parent, transaction);
+                }
+            }else{
+                //todo: handle root node redistribution
+            }
+        }
+    }
 
 /*
  * User needs to first find the sibling of input page. If sibling's size + input

@@ -100,10 +100,10 @@ namespace cmudb {
         bool getValue(Page *page, const KeyType &key, std::vector<ValueType>
         &result, Transaction *trans);
 
-        LEAFPAGE_TYPE *getLeafPage(const KeyType
-                                                            &key, Page
-        *page,
-                                       Transaction *transaction);
+        LEAFPAGE_TYPE *getLeafPage(const KeyType &key, Page *page,
+                                   Transaction *transaction);
+        template<typename N>
+        void coalesceOrRedistRecursive(N *node, Transaction *transaction);
 
         // member variable
         std::string index_name_;
