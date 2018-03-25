@@ -57,25 +57,14 @@ namespace cmudb {
     bool BPLUSTREE_TYPE::getValue(Page *page, const KeyType &key,
                                   std::vector<ValueType> &result,
                                   Transaction *trans) {
-        BPlusTreePage *treePage = static_cast<BPlusTreePage*>(page->GetData());
-        if (treePage->IsLeafPage()){
-            BPlusTreeLeafPage *leafPage = static_cast<BPlusTreeLeafPage*>
-            (treePage);
-            ValueType value;
-            bool res = leafPage->Lookup(key, value, comparator_);
-            if (res){
-                result.push_back(value);
-                return true;
-            }else{
-                return false;
-            }
+        BPlusTreeLeafPage *leaf = getLeafPage(key, page, trans);
+        ValueType value;
+        bool res = leaf->Lookup(key, value, comparator_);
+        if (res){
+            result.push_back(value);
+            return true;
         }else{
-            BPlusTreeInternalPage *internalPage =
-                    static_cast<BPlusTreeInternalPage*>(page->GetData());
-            ValueType value = internalPage->Lookup(key, comparator_);
-            page = buffer_pool_manager_->FetchPage(static_cast<RID>(value)
-                                                           .GetPageId());
-            return getValue(page, key, result, trans);
+            return false;
         }
     }
 
@@ -124,9 +113,11 @@ namespace cmudb {
         Page *root = buffer_pool_manager_->NewPage(root_page_id_);
         if (root == nullptr){
             throw std::bad_alloc();
+        }else{
+            BPlusTreeLeafPage *leaf = static_cast<BPlusTreeLeafPage*>
+            (root->GetData());
+            leaf->Insert(key, value, comparator_);
         }
-        //todo: what is the behavior for starting a new tree?
-
     }
 
 /*
@@ -156,8 +147,14 @@ namespace cmudb {
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
         BPlusTreeLeafPage *leaf = getLeafPage(key, page, transaction);
         if (leaf->KeyIndex(key, comparator_) < 0){
-            if(leaf->GetSize() == leaf->GetMaxSize()){
-                //todo: redistribute
+            if(leaf->GetSize() >= (leaf->GetMaxSize() - 1)){
+                BPlusTreeLeafPage *new_page = Split(leaf);
+                if (comparator_(key, new_page->KeyAt(1)) < 0){
+                    leaf->Insert(key, value, comparator_);
+                }else{
+                    new_page->Insert(key, value, comparator_);
+                }
+                InsertIntoParent(leaf, new_page->KeyAt(1), new_page);
             }else{
                 leaf->Insert(key, value, comparator_);
             }
@@ -188,15 +185,35 @@ namespace cmudb {
     }
 
 /*
- * Split input page and return newly created page.
- * Using template N to represent either internal page or leaf page.
- * User needs to first ask for new page from buffer pool manager(NOTICE: throw
- * an "out of memory" exception if returned value is nullptr), then move half
- * of key & value pairs from input page to newly created page
  */
+    /**
+     * Split input page and return newly created page.
+     * Using template N to represent either internal page or leaf page.
+     * User needs to first ask for new page from buffer pool manager(NOTICE:
+     * throw an "out of memory" exception if returned value is nullptr), then
+     * move half of key & value pairs from input page to newly created page
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @tparam N
+     * @param node
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     template<typename N>
-    N *BPLUSTREE_TYPE::Split(N *node) { return nullptr; }
+    N *BPLUSTREE_TYPE::Split(N *node) {
+        page_id_t  id;
+        Page *page = buffer_pool_manager_->NewPage(id);
+        BPlusTreePage *tree_page = static_cast<BPlusTreePage*>(node);
+        if (tree_page->IsLeafPage()){
+            BPlusTreeLeafPage *new_page =
+                    static_cast<BPlusTreeLeafPage*>page->GetData();
+            size_t start = tree_page->GetMaxSize() / 2;
+            //todo: need to split key/pointer pairs
+        }else{
+
+        }
+    }
 
 /*
  * Insert key & value pair into internal page after split
