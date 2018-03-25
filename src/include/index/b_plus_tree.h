@@ -21,6 +21,9 @@
 namespace cmudb {
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
+#define LEAFPAGE_TYPE BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>
+#define INTERNALPAGE_TYPE BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
+
 // Main class providing the API for the Interactive B+ Tree.
     INDEX_TEMPLATE_ARGUMENTS
     class BPlusTree {
@@ -97,7 +100,9 @@ namespace cmudb {
         bool getValue(Page *page, const KeyType &key, std::vector<ValueType>
         &result, Transaction *trans);
 
-        BPlusTreeLeafPage *getLeafPage(const KeyType &key, Page *page,
+        LEAFPAGE_TYPE *getLeafPage(const KeyType
+                                                            &key, Page
+        *page,
                                        Transaction *transaction);
 
         // member variable

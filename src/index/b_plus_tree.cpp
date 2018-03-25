@@ -57,7 +57,7 @@ namespace cmudb {
     bool BPLUSTREE_TYPE::getValue(Page *page, const KeyType &key,
                                   std::vector<ValueType> &result,
                                   Transaction *trans) {
-        BPlusTreeLeafPage *leaf = getLeafPage(key, page, trans);
+        LEAFPAGE_TYPE *leaf = getLeafPage(key, page, trans);
         ValueType value;
         bool res = leaf->Lookup(key, value, comparator_);
         if (res){
@@ -114,8 +114,7 @@ namespace cmudb {
         if (root == nullptr){
             throw std::bad_alloc();
         }else{
-            BPlusTreeLeafPage *leaf = static_cast<BPlusTreeLeafPage*>
-            (root->GetData());
+            LEAFPAGE_TYPE *leaf = reinterpret_cast<LEAFPAGE_TYPE*>(root->GetData());
             leaf->Insert(key, value, comparator_);
         }
     }
@@ -141,20 +140,20 @@ namespace cmudb {
     bool
     BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
                                    Transaction *transaction) {
-        if (root_page_id_ == nullptr){
+        if (root_page_id_ == INVALID_PAGE_ID){
             return false;
         }
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
-        BPlusTreeLeafPage *leaf = getLeafPage(key, page, transaction);
+        LEAFPAGE_TYPE *leaf = getLeafPage(key, page, transaction);
         if (leaf->KeyIndex(key, comparator_) < 0){
             if(leaf->GetSize() >= (leaf->GetMaxSize() - 1)){
-                BPlusTreeLeafPage *new_page = Split(leaf);
+                LEAFPAGE_TYPE *new_page = Split(leaf);
                 if (comparator_(key, new_page->KeyAt(1)) < 0){
                     leaf->Insert(key, value, comparator_);
                 }else{
                     new_page->Insert(key, value, comparator_);
                 }
-                InsertIntoParent(leaf, new_page->KeyAt(1), new_page);
+                InsertIntoParent(leaf, new_page->KeyAt(1), new_page, nullptr);
             }else{
                 leaf->Insert(key, value, comparator_);
             }
@@ -165,17 +164,17 @@ namespace cmudb {
    }
 
     INDEX_TEMPLATE_ARGUMENTS
-    BPlusTreeLeafPage*
+    LEAFPAGE_TYPE*
     BPLUSTREE_TYPE::getLeafPage(const KeyType &key, Page *page,
                                 Transaction *transaction) {
-        BPlusTreePage *treePage = static_cast<BPlusTreePage*>(page->GetData());
+        BPlusTreePage *treePage = reinterpret_cast<BPlusTreePage*>(page->GetData
+                ());
         if (treePage->IsLeafPage()){
-            BPlusTreeLeafPage *leafPage = static_cast<BPlusTreeLeafPage*>
-            (treePage);
+            LEAFPAGE_TYPE *leafPage = reinterpret_cast<LEAFPAGE_TYPE*>(treePage);
             return leafPage;
         }else{
-            BPlusTreeInternalPage *internalPage =
-                    static_cast<BPlusTreeInternalPage*>(page->GetData());
+            INTERNALPAGE_TYPE *internalPage =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
             ValueType value = internalPage->Lookup(key, comparator_);
             page = buffer_pool_manager_->FetchPage(static_cast<RID>(value)
                                                            .GetPageId());
@@ -204,14 +203,27 @@ namespace cmudb {
     N *BPLUSTREE_TYPE::Split(N *node) {
         page_id_t  id;
         Page *page = buffer_pool_manager_->NewPage(id);
-        BPlusTreePage *tree_page = static_cast<BPlusTreePage*>(node);
+        if (page == nullptr){
+            throw std::bad_alloc();
+        }
+        BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>(node);
         if (tree_page->IsLeafPage()){
-            BPlusTreeLeafPage *new_page =
-                    static_cast<BPlusTreeLeafPage*>page->GetData();
-            size_t start = tree_page->GetMaxSize() / 2;
-            //todo: need to split key/pointer pairs
+            LEAFPAGE_TYPE *old_page = reinterpret_cast<LEAFPAGE_TYPE*>(node);
+            LEAFPAGE_TYPE *new_page =
+                    reinterpret_cast<LEAFPAGE_TYPE*>(page->GetData());
+            old_page->MoveHalfTo(new_page, buffer_pool_manager_);
+            KeyType first_key = new_page->KeyAt(0);
+            InsertIntoParent(old_page, first_key, new_page, nullptr);
+            return new_page;
         }else{
-
+            INTERNALPAGE_TYPE *old_page =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(node);
+            INTERNALPAGE_TYPE *new_page =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
+            old_page->MoveHalfTo(new_page, buffer_pool_manager_);
+            KeyType first_key = new_page->KeyAt(0);
+            InsertIntoParent(old_page, first_key, new_page, nullptr);
+            return reinterpret_cast<N*>(new_page);
         }
     }
 
@@ -349,7 +361,7 @@ namespace cmudb {
  */
     INDEX_TEMPLATE_ARGUMENTS
     void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {
-        HeaderPage *header_page = static_cast<HeaderPage *>(
+        HeaderPage *header_page = reinterpret_cast<HeaderPage *>(
                 buffer_pool_manager_->FetchPage(HEADER_PAGE_ID));
         if (insert_record)
             // create a new record<index_name + root_page_id> in header_page

@@ -47,7 +47,7 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     int
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
-        for (size_t i = 0; i < GetSize(); i++){
+        for (size_t i = 0; i < static_cast<size_t>(GetSize()); i++){
             ValueType v = array[i].second;
             if (memcmp(&v, &value, sizeof(ValueType)) == 0){
                 return i;
@@ -79,8 +79,8 @@ namespace cmudb {
     ValueType
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                            const KeyComparator &comparator) const {
-        for (size_t i = 1; i < GetSize(); i++){
-            KeyType k = array[i];
+        for (size_t i = 1; i < static_cast<size_t>(GetSize()); i++){
+            KeyType k = array[i].first;
             if (comparator(key, k) < 0){
                 return array[i - 1].second;
             }
