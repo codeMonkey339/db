@@ -99,12 +99,18 @@ namespace cmudb {
         /********************** helper methods ********************************/
         bool getValue(Page *page, const KeyType &key, std::vector<ValueType>
         &result, Transaction *trans);
-
         LEAFPAGE_TYPE *getLeafPage(const KeyType &key, Page *page,
                                    Transaction *transaction);
+        bool needCoalesceOrRedist(size_t parent_size, size_t parent_max_size);
         template<typename N>
         void coalesceOrRedistRecursive(N *node, Transaction *transaction);
-
+        template<typename N>
+        void remove_entry(const KeyType &key, ValueType &value, N *node,
+                          Transaction *transaction);
+        /* check whether two pages can be coalesced */
+        bool coalesceable(size_t size1, size_t size2, size_t max_size){
+            return (size1 + size2) <= max_size;
+        }
         // member variable
         std::string index_name_;
         page_id_t root_page_id_;
