@@ -314,12 +314,9 @@ namespace cmudb {
         }
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
         LEAFPAGE_TYPE *leaf = getLeafPage(key, page, transaction);
+        ValueType value = leaf->GetPageId();
         leaf->RemoveAndDeleteRecord(key, comparator_);
-        if (needCoalesceOrRedist(leaf->GetSize(), leaf->GetMaxSize())){
-            coalesceOrRedistRecursive(leaf, transaction);
-        }
-        //todo: deletion may cause the update to parent key value. recursively?
-        //todo: need a pseudo code to follow!
+        remove_entry(key, value, leaf, transaction);
     }
 
 
@@ -329,53 +326,28 @@ namespace cmudb {
     void BPLUSTREE_TYPE::remove_entry(const KeyType &key, ValueType &value,
                                       N *node, Transaction *transaction) {
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
+        if (page->IsLeafPage()){
+            reinterpret_cast<LEAFPAGE_TYPE*>(page)->RemoveAndDeleteRecord
+                    (key, comparator_);
+        }else{
+            INTERNALPAGE_TYPE *page_internal =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(page);
+            size_t keyIndex = page_internal->ValueIndex(value);
+            page_internal->Remove(keyIndex);
+        }
+
         if (page->IsRootPage() && page->GetSize() == 1){
             INTERNALPAGE_TYPE *root =reinterpret_cast<INTERNALPAGE_TYPE*>(page);
-            root_page_id_ = root->ValueAt(0);
+            ValueType new_root = root->ValueAt(0);
+            root_page_id_ = static_cast<RID>(new_root).GetPageId();
             buffer_pool_manager_->DeletePage(page->GetPageId());
         }else{
             if (needCoalesceOrRedist(page->GetSize(), page->GetMaxSize())){
-                if (CoalesceOrRedistribute(node, transaction)){
-                    //todo:???
-                }
+                CoalesceOrRedistribute(node, transaction);
             }
         }
     }
 
-    /**
-     * coalesce or redistribute recursively up the tree
-     *
-     * @tparam KeyType
-     * @tparam ValueType
-     * @tparam KeyComparator
-     * @tparam N
-     * @param node
-     * @param transaction
-     */
-    INDEX_TEMPLATE_ARGUMENTS
-    template<typename N>
-    void
-    BPLUSTREE_TYPE::coalesceOrRedistRecursive(N *node,
-                                              Transaction *transaction) {
-        // adopt bottom-up approach
-        if (CoalesceOrRedistribute(node, transaction)){
-            BPlusTreePage* page = reinterpret_cast<BPlusTreePage*>(node);
-            page_id_t parent_id = page->GetParentPageId();
-            Page *parent = buffer_pool_manager_->FetchPage(parent_id);
-            INTERNALPAGE_TYPE *parent_page =
-                    reinterpret_cast<INTERNALPAGE_TYPE*>(parent->GetData());
-            if (!parent_page->IsRootPage()){
-                int key_id = parent_page->ValueIndex(page->GetPageId());
-                parent_page->Remove(key_id);
-                if (needCoalesceOrRedist(parent_page->GetSize(), parent_page
-                        ->GetMaxSize())){
-                    coalesceOrRedistRecursive(parent, transaction);
-                }
-            }else{
-                //todo: handle root node redistribution
-            }
-        }
-    }
 
 
     /**
@@ -412,62 +384,118 @@ namespace cmudb {
      */
     INDEX_TEMPLATE_ARGUMENTS
     template<typename N>
-    bool
+    void
     BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
+        if (!try_coalesce(node, transaction)){
+            try_redistribute(node, transaction);
+        }
+    }
+
+    /**
+     * try all siblings of the node to see if coalesce is possible
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @tparam N
+     * @param node
+     * @param parent
+     * @param tran
+     * @return
+     */
+    INDEX_TEMPLATE_ARGUMENTS
+    template<typename N>
+    bool BPLUSTREE_TYPE::try_coalesce(N *node, Transaction *tran) {
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
         page_id_t parent_page_id = page->GetParentPageId();
-        INTERNALPAGE_TYPE *parent =
-                reinterpret_cast<INTERNALPAGE_TYPE*>(buffer_pool_manager_
-                        ->FetchPage(parent_page_id)->GetData());
+        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
+                (buffer_pool_manager_->FetchPage(parent_page_id)->GetData());
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
+        KeyType separate_key = parent->KeyAt(keyIndex);
         if (keyIndex >= 1){
-            BPlusTreePage *young_sib = parent->ValueAt(keyIndex - 1);
-            //todo: extract method
-            KeyType separate_key = parent->KeyAt(keyIndex);
-            //todo: need to try young/old sibling
-            if (coalesceable(young_sib->GetSize(), page->GetSize(),
-                             page->GetMaxSize())){
-                if (!page->IsLeafPage()){
-                    size_t sib_old_size = young_sib->GetSize();
-                    INTERNALPAGE_TYPE *page_internal =
-                            reinterpret_cast<INTERNALPAGE_TYPE*>(page_internal);
-                    INTERNALPAGE_TYPE *sib_internal =
-                            reinterpret_cast<INTERNALPAGE_TYPE*>(young_sib);
-                    page_internal->MoveAllTo(sib_internal, keyIndex,
-                                             buffer_pool_manager_);
-                    sib_internal->SetKeyAt(sib_old_size - 1, separate_key);
-                }else{
-
-                }
-                remove_entry(parent, separate_key, page, transaction);
-            }else{
-
+            ValueType sib_val = parent->ValueAt(keyIndex - 1);
+            page_id_t young_sib_id = static_cast<RID>(sib_val).GetPageId();
+            Page *young_sib_page=buffer_pool_manager_->FetchPage(young_sib_id);
+            BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
+            (young_sib_page->GetData());
+            if (Coalesce(sib_page, page, parent, keyIndex, tran)){
+                remove_entry(separate_key, page, parent, tran);
+                buffer_pool_manager_->DeletePage(page->GetPageId());
+                return true;
             }
-        }else{
-
+        }
+        if (keyIndex < (parent->GetSize() - 1)){
+            ValueType sib_val = parent->ValueAt(keyIndex + 1);
+            page_id_t old_sib_id = static_cast<RID>(sib_val).GetPageId();
+            Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
+            BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
+            (old_sib_page->GetData());
+            if (Coalesce(page, sib_page, parent, keyIndex, tran)){
+                remove_entry(separate_key, sib_page, parent, tran);
+                buffer_pool_manager_->DeletePage(sib_page->GetPageId());
+                return true;
+            }
         }
         return false;
     }
 
-/*
- * Move all the key & value pairs from one page to its sibling page, and notify
- * buffer pool manager to delete this page. Parent page must be adjusted to
- * take info of deletion into account. Remember to deal with coalesce or
- * redistribute recursively if necessary.
- * Using template N to represent either internal page or leaf page.
- * @param   neighbor_node      sibling page of input "node"
- * @param   node               input from method coalesceOrRedistribute()
- * @param   parent             parent page of input "node"
- * @return  true means parent node should be deleted, false means no deletion
- * happend
- */
+    /**
+     * Move all the key & value pairs from one page to its sibling page, and notify
+     * buffer pool manager to delete this page. Parent page must be adjusted to
+     * take info of deletion into account. Remember to deal with coalesce or
+     * redistribute recursively if necessary.
+     * Using template N to represent either internal page or leaf page.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @tparam N
+     * @param neighbor_node sibling page of input "node"
+     * @param node input from method coalesceOrRedistribute()
+     * @param parent parent page of input "node"
+     * @param index
+     * @param transaction
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     template<typename N>
     bool BPLUSTREE_TYPE::Coalesce(
             N *&neighbor_node, N *&node,
             BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *&parent,
             int index, Transaction *transaction) {
-        return false;
+        BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
+        BPlusTreePage *young_sib =
+                reinterpret_cast<BPlusTreePage*>(neighbor_node);
+        if (!coalesceable(young_sib->GetSize(), page->GetSize(),
+                         page->GetMaxSize())){
+            return false;
+        }
+
+        KeyType separate_key = parent->KeyAt(index);
+        if (!page->IsLeafPage()){
+            size_t sib_old_size = young_sib->GetSize();
+            INTERNALPAGE_TYPE *page_internal =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(page);
+            INTERNALPAGE_TYPE *sib_internal =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(young_sib);
+            page_internal->MoveAllTo(sib_internal, index,
+                                     buffer_pool_manager_);
+            sib_internal->SetKeyAt(sib_old_size - 1, separate_key);
+        }else{
+            LEAFPAGE_TYPE *page_leaf =
+                    reinterpret_cast<LEAFPAGE_TYPE*>(page);
+            LEAFPAGE_TYPE *sib_leaf =
+                    reinterpret_cast<LEAFPAGE_TYPE*>(young_sib);
+            page_leaf->MoveAllTo(sib_leaf, index,
+                                 buffer_pool_manager_);
+            sib_leaf->SetNextPageId(page_leaf->GetNextPageId());
+        }
+        return true;
+    }
+
+    template<typename N>
+    bool try_redistribute(N *node, Transaction *tran){
+        //todo:
+        return true;
     }
 
 /*

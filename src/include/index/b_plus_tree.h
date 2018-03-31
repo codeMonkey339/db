@@ -80,7 +80,7 @@ namespace cmudb {
         N *Split(N *node);
 
         template<typename N>
-        bool
+        void
         CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr);
 
         template<typename N>
@@ -103,10 +103,12 @@ namespace cmudb {
                                    Transaction *transaction);
         bool needCoalesceOrRedist(size_t parent_size, size_t parent_max_size);
         template<typename N>
-        void coalesceOrRedistRecursive(N *node, Transaction *transaction);
-        template<typename N>
         void remove_entry(const KeyType &key, ValueType &value, N *node,
                           Transaction *transaction);
+        template<typename N>
+        bool try_coalesce(N *node, Transaction *tran);
+        template<typename N>
+        bool try_redistribute(N *node, Transaction *tran);
         /* check whether two pages can be coalesced */
         bool coalesceable(size_t size1, size_t size2, size_t max_size){
             return (size1 + size2) <= max_size;
