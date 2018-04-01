@@ -21,6 +21,7 @@
 namespace cmudb {
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
+//todo: these defines are actually redundant, defined in respective impl
 #define LEAFPAGE_TYPE BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>
 #define INTERNALPAGE_TYPE BPlusTreeInternalPage<KeyType,ValueType,KeyComparator>
 

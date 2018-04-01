@@ -37,6 +37,8 @@ namespace cmudb {
         INTERNAL_PAGE
     };
 
+//todo: note methods should be defined as virtual to make the class abstract!
+
 // Abstract class.
     class BPlusTreePage {
     public:

@@ -515,7 +515,6 @@ namespace cmudb {
         INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
         (buffer_pool_manager_->FetchPage(parent_page_id)->GetData());
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
-        //todo: pass function pointer to re-use code for coalesce
         if (keyIndex >= 1){
             // young sibling existing case
             ValueType sib_val = parent->ValueAt(keyIndex - 1);

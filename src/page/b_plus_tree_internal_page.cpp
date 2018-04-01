@@ -11,22 +11,41 @@ namespace cmudb {
 /*****************************************************************************
  * HELPER METHODS AND UTILITIES
  *****************************************************************************/
-/*
- * Init method after creating a new internal page
- * Including set page type, set current size, set page id, set parent id and set
- * max page size
- */
+    /**
+     * Init method after creating a new internal page
+     * Including set page type, set current size, set page id, set parent id
+     * and set max page size
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param page_id
+     * @param parent_id
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
                                               page_id_t parent_id) {
+        SetPageType(IndexPageType::INTERNAL_PAGE);
+        SetSize(0);
         SetPageId(page_id);
-        SetPageId(parent_id);
-        //todo: how to set up other parameters
+        SetParentPageId(parent_id);
+        //todo: is this the correct way to calculate max size?
+        size_t size = (PAGE_SIZE - sizeof(B_PLUS_TREE_INTERNAL_PAGE_TYPE)) /
+                sizeof(MappingType);
+        SetMaxSize(size);
+        //todo: need to allocated memory to array
     }
-/*
- * Helper method to get/set the key associated with input "index"(a.k.a
- * array offset)
- */
+
+    /**
+     * Helper method to get/set the key associated with input "index"(a.k.a
+     * array offset)
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param index
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     KeyType B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const {
         KeyType key = array[index].first;
@@ -40,10 +59,16 @@ namespace cmudb {
         entry.first = key;
     }
 
-/*
- * Helper method to find and return array index(or offset), so that its value
- * equals to input "value"
- */
+    /**
+     * Helper method to find and return array index(or offset), so that its value
+     * equals to input "value"
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param value
+     * @return if found, return the index; otherwise return -1
+     */
     INDEX_TEMPLATE_ARGUMENTS
     int
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
@@ -63,6 +88,7 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     ValueType
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
+        assert(index < GetMaxSize() && index >= 0);
         ValueType v = array[index].second;
         return v;
     }
@@ -70,11 +96,18 @@ namespace cmudb {
 /*****************************************************************************
  * LOOKUP
  *****************************************************************************/
-/*
- * Find and return the child pointer(page_id) which points to the child page
- * that contains input "key"
- * Start the search from the second key(the first key should always be invalid)
- */
+    /**
+     * Find and return the child pointer(page_id) which points to the child page
+     * that contains input "key" Start the search from the second key(the
+     * first key should always be invalid)
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param comparator
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     ValueType
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
@@ -91,38 +124,79 @@ namespace cmudb {
 /*****************************************************************************
  * INSERTION
  *****************************************************************************/
-/*
- * Populate new root page with old_value + new_key & new_value
- * When the insertion cause overflow from leaf page all the way upto the root
- * page, you should create a new root page and populate its elements.
- * NOTE: This method is only called within InsertIntoParent()(b_plus_tree.cpp)
- */
+    /**
+     * Populate new root page with old_value + new_key & new_value
+     * When the insertion cause overflow from leaf page all the way upto the
+     * root page, you should create a new root page and populate its elements.
+     * NOTE: This method is only called within InsertIntoParent()(b_plus_tree
+     * .cpp)
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param old_value
+     * @param new_key
+     * @param new_value
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(
             const ValueType &old_value, const KeyType &new_key,
-            const ValueType &new_value) {}
-/*
- * Insert new_key & new_value pair right after the pair with its value ==
- * old_value
- * @return:  new size after insertion
- */
+            const ValueType &new_value) {
+        //todo:
+    }
+    /**
+     * Insert new_key & new_value pair right after the pair with its value ==
+     * old_value. No need to consider overflow, this has been taken care by
+     * the B+ tree itself
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param old_value
+     * @param new_key
+     * @param new_value
+     * @return:  new size after insertion
+     */
     INDEX_TEMPLATE_ARGUMENTS
     int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
             const ValueType &old_value, const KeyType &new_key,
             const ValueType &new_value) {
-        return 0;
+        assert(GetSize() < GetMaxSize());
+        size_t old_index = ValueIndex(old_value);
+        assert(old_index != -1);
+        for (size_t i = GetSize() - 1; i > old_index; i--){
+            MappingType old_pair = array[i];
+            MappingType new_pair = array[i + 1];
+            new_pair.swap(old_pair);
+        }
+        array[old_index + 1].first = new_key;
+        array[old_index + 1].second = new_value;
+        IncreaseSize(1);
+        return GetSize();
     }
 
 /*****************************************************************************
  * SPLIT
  *****************************************************************************/
-/*
- * Remove half of key & value pairs from this page to "recipient" page
- */
+    /**
+     * Remove half of key & value pairs from this page to "recipient" page
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param recipient
+     * @param buffer_pool_manager
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
             BPlusTreeInternalPage *recipient,
-            BufferPoolManager *buffer_pool_manager) {}
+            BufferPoolManager *buffer_pool_manager) {
+        size_t move_n = GetSize() / 2;
+        for (size_t i = move_n; i < GetSize(); i++){
+            //todo: how to insert the first value???
+        }
+
+    }
 
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
