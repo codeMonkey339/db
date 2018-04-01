@@ -320,7 +320,18 @@ namespace cmudb {
     }
 
 
-
+    /**
+     * helper method
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @tparam N
+     * @param key the key to be deleted
+     * @param value the value associated with the key to be deleted
+     * @param node the page contains the key/value to be deleted
+     * @param transaction
+     */
     INDEX_TEMPLATE_ARGUMENTS
     template <typename N>
     void BPLUSTREE_TYPE::remove_entry(const KeyType &key, ValueType &value,
@@ -419,19 +430,21 @@ namespace cmudb {
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (young_sib_page->GetData());
             if (Coalesce(sib_page, page, parent, keyIndex, tran)){
-                remove_entry(separate_key, page, parent, tran);
+                ValueType separate_value = parent->ValueAt(keyIndex);
+                remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(page->GetPageId());
                 return true;
             }
         }
-        if (keyIndex < (parent->GetSize() - 1)){
+        if (keyIndex < static_cast<size_t>(parent->GetSize() - 1)){
             ValueType sib_val = parent->ValueAt(keyIndex + 1);
             page_id_t old_sib_id = static_cast<RID>(sib_val).GetPageId();
             Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
-                remove_entry(separate_key, sib_page, parent, tran);
+                ValueType separate_value = parent->ValueAt(keyIndex);
+                remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 return true;
             }
@@ -460,7 +473,7 @@ namespace cmudb {
     template<typename N>
     bool BPLUSTREE_TYPE::Coalesce(
             N *&neighbor_node, N *&node,
-            BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *&parent,
+            BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *&parent,
             int index, Transaction *transaction) {
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
         BPlusTreePage *young_sib =
