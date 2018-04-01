@@ -361,23 +361,6 @@ namespace cmudb {
 
 
 
-    /**
-     * check whether deletion of this page calls for coalesce or redistribution
-     *
-     * @tparam KeyType
-     * @tparam ValueType
-     * @tparam KeyComparator
-     * @param parent_size
-     * @param parent_max_size
-     * @return
-     */
-    INDEX_TEMPLATE_ARGUMENTS
-    bool
-    BPLUSTREE_TYPE::needCoalesceOrRedist(size_t size,
-                                         size_t max_size) {
-        //todo: this condition needs to be updated
-        return size < (max_size + 1) / 2;
-    }
 
     /**
      * User needs to first find the sibling of input page. If sibling's size
@@ -400,6 +383,25 @@ namespace cmudb {
         if (!try_coalesce(node, transaction)){
             try_redistribute(node, transaction);
         }
+    }
+
+
+    /**
+     * check whether deletion of this page calls for coalesce or redistribution
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param parent_size
+     * @param parent_max_size
+     * @return
+     */
+    INDEX_TEMPLATE_ARGUMENTS
+    bool
+    BPLUSTREE_TYPE::needCoalesceOrRedist(size_t size,
+                                         size_t max_size) {
+        //todo: this condition needs to be updated
+        return size < (max_size + 1) / 2;
     }
 
     /**
@@ -505,24 +507,78 @@ namespace cmudb {
         return true;
     }
 
-    template<typename N>
-    bool try_redistribute(N *node, Transaction *tran){
-        //todo:
-        return true;
-    }
-
-/*
- * Redistribute key & value pairs from one page to its sibling page. If index ==
- * 0, move sibling page's first key & value pair into end of input "node",
- * otherwise move sibling page's last key & value pair into head of input
- * "node".
- * Using template N to represent either internal page or leaf page.
- * @param   neighbor_node      sibling page of input "node"
- * @param   node               input from method coalesceOrRedistribute()
- */
     INDEX_TEMPLATE_ARGUMENTS
     template<typename N>
-    void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {}
+    bool BPLUSTREE_TYPE::try_redistribute(N *node, Transaction *tran){
+        BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
+        page_id_t parent_page_id = page->GetParentPageId();
+        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
+        (buffer_pool_manager_->FetchPage(parent_page_id)->GetData());
+        size_t keyIndex = parent->ValueIndex(page->GetPageId());
+        //todo: pass function pointer to re-use code for coalesce
+        if (keyIndex >= 1){
+            // young sibling existing case
+            ValueType sib_val = parent->ValueAt(keyIndex - 1);
+            page_id_t young_sib_id = static_cast<RID>(sib_val).GetPageId();
+            Page *young_sib_page=buffer_pool_manager_->FetchPage(young_sib_id);
+            BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
+            (young_sib_page->GetData());
+            Redistribute(sib_page, page, keyIndex);
+            return true;
+        }
+        if (keyIndex < static_cast<size_t >(parent->GetSize() - 1)){
+            // old sibling existing case
+            ValueType sib_val = parent->ValueAt(keyIndex + 1);
+            page_id_t old_sib_id = static_cast<RID>(sib_val).GetPageId();
+            Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
+            BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
+            (old_sib_page->GetData());
+            Redistribute(page, sib_page, keyIndex);
+            return true;
+        }
+        return false; // the code should be un-reacheable!
+    }
+
+    /**
+     * Redistribute key & value pairs from one page to its sibling page. If
+     * index == 0, move sibling page's first key & value pair into end of
+     * input "node", otherwise move sibling page's last key & value pair into
+     * head of input "node".
+     *
+     * Using template N to represent either internal page or leaf page.
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @tparam N
+     * @param neighbor_node sibling page of input "node"
+     * @param node input from method coalesceOrRedistribute()
+     * @param index
+     */
+    INDEX_TEMPLATE_ARGUMENTS
+    template<typename N>
+    void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
+        BPlusTreePage *young_sib_page = reinterpret_cast<BPlusTreePage*>
+        (neighbor_node);
+        BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
+        page_id_t parent_page_id = page->GetPageId();
+        Page *parent_page = buffer_pool_manager_->FetchPage(parent_page_id);
+        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
+        (parent_page->GetData());
+        size_t keyIndex = parent->ValueIndex(page->GetPageId());
+        if (!page->IsLeafPage()){
+            INTERNALPAGE_TYPE *sib_page =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(young_sib_page);
+            INTERNALPAGE_TYPE *cur_page =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(page);
+            sib_page->MoveLastToFrontOf(cur_page, keyIndex,buffer_pool_manager_);
+        }else{
+            LEAFPAGE_TYPE *sib_page =
+                    reinterpret_cast<LEAFPAGE_TYPE*>(young_sib_page);
+            LEAFPAGE_TYPE *cur_page =
+                    reinterpret_cast<LEAFPAGE_TYPE*>(page);
+            sib_page->MoveLastToFrontOf(cur_page, keyIndex,buffer_pool_manager_);
+        }
+    }
 /*
  * Update root page if necessary
  * NOTE: size of root page can be less than min size and this method is only
@@ -535,6 +591,7 @@ namespace cmudb {
  */
     INDEX_TEMPLATE_ARGUMENTS
     bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
+        //todo:
         return false;
     }
 
