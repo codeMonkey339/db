@@ -442,7 +442,8 @@ namespace cmudb {
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
-                ValueType separate_value = parent->ValueAt(keyIndex);
+                //todo: note, there is a -1 here
+                ValueType separate_value = parent->ValueAt(keyIndex - 1);
                 remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 return true;
@@ -489,6 +490,8 @@ namespace cmudb {
                     reinterpret_cast<INTERNALPAGE_TYPE*>(page);
             INTERNALPAGE_TYPE *sib_internal =
                     reinterpret_cast<INTERNALPAGE_TYPE*>(young_sib);
+            //todo: the way key/value removed are different. One case is key
+            // followed by value, the other is vice versa
             page_internal->MoveAllTo(sib_internal, index,
                                      buffer_pool_manager_);
             sib_internal->SetKeyAt(sib_old_size - 1, separate_key);

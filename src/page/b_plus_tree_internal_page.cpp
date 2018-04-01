@@ -162,9 +162,9 @@ namespace cmudb {
             const ValueType &old_value, const KeyType &new_key,
             const ValueType &new_value) {
         assert(GetSize() < GetMaxSize());
-        size_t old_index = ValueIndex(old_value);
+        int old_index = ValueIndex(old_value);
         assert(old_index != -1);
-        for (size_t i = GetSize() - 1; i > old_index; i--){
+        for (int i = GetSize() - 1; i > old_index; i--){
             MappingType old_pair = array[i];
             MappingType new_pair = array[i + 1];
             new_pair.swap(old_pair);
@@ -192,14 +192,14 @@ namespace cmudb {
             BPlusTreeInternalPage *recipient,
             BufferPoolManager *buffer_pool_manager) {
         size_t move_n = GetSize() / 2;
-        for (size_t i = move_n, j = 0; i < GetSize(); i++, j++){
+        for (int i = move_n, j = 0; i < GetSize(); i++, j++){
             recipient->array[j].first = array[move_n].first;
             recipient->array[j].second = array[move_n].second;
         }
 
         SetSize(move_n);
         recipient->IncreaseSize(GetSize() - move_n);
-        for (size_t i = 0; i < GetSize(); i++){
+        for (int i = 0; i < GetSize(); i++){
             page_id_t  page_id = recipient->ValueIndex(i);
             Page *page = buffer_pool_manager->FetchPage(page_id);
             BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
@@ -232,7 +232,7 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
         assert(index >= 0 && index < GetSize());
-        for (size_t i = index; i < (GetSize() - 1); i++){
+        for (int i = index; i < (GetSize() - 1); i++){
             array[i].first = array[i + 1].first;
             array[i].second = array[i + 1].second;
         }
@@ -257,16 +257,80 @@ namespace cmudb {
 /*****************************************************************************
  * MERGE
  *****************************************************************************/
-/*
- * Remove all of key & value pairs from this page to "recipient" page, then
- * update relavent key & value pair in its parent page.
- */
+    /**
+     * Remove all of key & value pairs from this page to "recipient" page, then
+     * update relavent key & value pair in its parent page.
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param recipient
+     * @param index_in_parent
+     * @param buffer_pool_manager
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
             BPlusTreeInternalPage *recipient, int index_in_parent,
             BufferPoolManager *buffer_pool_manager) {
-        //todo:
+        Page *parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent_page->GetData());
+        size_t cur_key_index = parent->ValueIndex(GetPageId());
+        size_t recipient_key_index = parent->ValueIndex(recipient->GetPageId());
+        if (cur_key_index < recipient_key_index){
+            size_t recipient_size = recipient->GetSize();
+            size_t cur_size = GetSize();
+            for(size_t i = cur_size - 1, j = recipient->GetSize(); i >= 0;
+                i--, j--){
+                if (i == 0){
+                    Page *parent_page = buffer_pool_manager->FetchPage
+                            (GetParentPageId());
+                    B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                            reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                            (parent_page->GetData());
+                    KeyType key_in_parent = parent->KeyAt(index_in_parent);
+                    array[i].first = key_in_parent;
+                    //todo: move recipient ot the position of this
+                    parent->array[index_in_parent - 1].second =
+                            recipient->GetPageId();
+
+                }else{
+                    array[i].first = recipient->array[j].first;
+                }
+                array[i + recipient_size].first = array[i].first;
+                array[i + recipient_size].second = array[i].second;
+                array[i].second = recipient->array[j].second;
+
+                Page *page =buffer_pool_manager->FetchPage(array[i].second);
+                BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
+                (page->GetData());
+                tree_page->SetParentPageId(recipient->GetPageId());
+            }
+        }else{
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *first = recipient;
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *second = this;
+            for(int i = first->GetSize(), j = 0; j < second->GetSize();i++,j++){
+                if (j == 0){
+                    Page *parent_page = buffer_pool_manager->FetchPage
+                            (GetParentPageId());
+                    B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                            reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                            (parent_page->GetData());
+                    KeyType key_in_parent = parent->KeyAt(index_in_parent);
+                    first->array[i].first = key_in_parent;
+
+                }else{
+                    first->array[i].first = second->array[j].first;
+                }
+                first->array[i].second = second->array[j].second;
+                Page *page =buffer_pool_manager->FetchPage(second->array[j].second);
+                BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
+                (page->GetData());
+                tree_page->SetParentPageId(first->GetPageId());
+            }
+        }
     }
+
 
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyAllFrom(
