@@ -192,35 +192,67 @@ namespace cmudb {
             BPlusTreeInternalPage *recipient,
             BufferPoolManager *buffer_pool_manager) {
         size_t move_n = GetSize() / 2;
-        for (size_t i = move_n; i < GetSize(); i++){
-            //todo: how to insert the first value???
+        for (size_t i = move_n, j = 0; i < GetSize(); i++, j++){
+            recipient->array[j].first = array[move_n].first;
+            recipient->array[j].second = array[move_n].second;
         }
 
+        SetSize(move_n);
+        recipient->IncreaseSize(GetSize() - move_n);
+        for (size_t i = 0; i < GetSize(); i++){
+            page_id_t  page_id = recipient->ValueIndex(i);
+            Page *page = buffer_pool_manager->FetchPage(page_id);
+            BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
+            (page->GetData());
+            tree_page->SetParentPageId(recipient->GetPageId());
+            buffer_pool_manager->UnpinPage(page_id, true);
+        }
     }
 
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
             MappingType *items, int size,
-            BufferPoolManager *buffer_pool_manager) {}
+            BufferPoolManager *buffer_pool_manager) {
+        //todo:
+    }
 
 /*****************************************************************************
  * REMOVE
  *****************************************************************************/
-/*
- * Remove the key & value pair in internal page according to input index(a.k.a
- * array offset)
- * NOTE: store key&value pair continuously after deletion
- */
+    /**
+     * Remove the key & value pair in internal page according to input index(a.k.a
+     * array offset)
+     * NOTE: store key&value pair continuously after deletion
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param index
+     */
     INDEX_TEMPLATE_ARGUMENTS
-    void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {}
+    void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
+        assert(index >= 0 && index < GetSize());
+        for (size_t i = index; i < (GetSize() - 1); i++){
+            array[i].first = array[i + 1].first;
+            array[i].second = array[i + 1].second;
+        }
+        IncreaseSize( -1);
+    }
 
-/*
- * Remove the only key & value pair in internal page and return the value
- * NOTE: only call this method within AdjustRoot()(in b_plus_tree.cpp)
- */
+    /**
+     * Remove the only key & value pair in internal page and return the value
+     * NOTE: only call this method within AdjustRoot()(in b_plus_tree.cpp)
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
-        return INVALID_PAGE_ID;
+        ValueType value = array[0].second;
+        Remove(0);
+        return value;
     }
 /*****************************************************************************
  * MERGE
@@ -232,7 +264,9 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
             BPlusTreeInternalPage *recipient, int index_in_parent,
-            BufferPoolManager *buffer_pool_manager) {}
+            BufferPoolManager *buffer_pool_manager) {
+        //todo:
+    }
 
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyAllFrom(
