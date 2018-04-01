@@ -141,6 +141,7 @@ namespace cmudb {
     bool
     BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
                                    Transaction *transaction) {
+        /* implementation is a variant of psedu-code in textbook */
         if (root_page_id_ == INVALID_PAGE_ID){
             return false;
         }
@@ -154,7 +155,7 @@ namespace cmudb {
                 }else{
                     new_page->Insert(key, value, comparator_);
                 }
-                InsertIntoParent(leaf, new_page->KeyAt(1), new_page, nullptr);
+                InsertIntoParent(leaf, new_page->KeyAt(1), new_page, transaction);
             }else{
                 leaf->Insert(key, value, comparator_);
             }
@@ -214,8 +215,6 @@ namespace cmudb {
                     reinterpret_cast<LEAFPAGE_TYPE*>(page->GetData());
             new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
-            KeyType first_key = new_page->KeyAt(0);
-            InsertIntoParent(old_page, first_key, new_page, nullptr);
             return reinterpret_cast<N*>(new_page);
         }else{
             INTERNALPAGE_TYPE *old_page =
@@ -224,8 +223,6 @@ namespace cmudb {
                     reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
             new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
-            KeyType first_key = new_page->KeyAt(0);
-            InsertIntoParent(old_page, first_key, new_page, nullptr);
             return reinterpret_cast<N*>(new_page);
         }
     }
