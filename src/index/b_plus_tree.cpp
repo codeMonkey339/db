@@ -442,8 +442,7 @@ namespace cmudb {
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
-                //todo: note, there is a -1 here
-                ValueType separate_value = parent->ValueAt(keyIndex - 1);
+                ValueType separate_value = parent->ValueAt(keyIndex);
                 remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 return true;
