@@ -63,7 +63,7 @@ namespace cmudb {
                         BufferPoolManager *buffer_pool_manager /* Unused */);
 
         void MoveAllTo(BPlusTreeLeafPage *recipient, int /* Unused */,
-                       BufferPoolManager * /* Unused */);
+                       BufferPoolManager * buffer_pool_manager);
 
         void MoveFirstToEndOf(BPlusTreeLeafPage *recipient,
                               BufferPoolManager *buffer_pool_manager);

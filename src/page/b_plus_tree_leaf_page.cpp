@@ -3,6 +3,7 @@
  */
 
 #include <sstream>
+#include <include/page/b_plus_tree_internal_page.h>
 
 #include "common/exception.h"
 #include "common/rid.h"
@@ -146,10 +147,41 @@ namespace cmudb {
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
             BPlusTreeLeafPage *recipient,
             __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
-        //todo: recipient > this or this > recipient?
-        //todo: need to handle prev/next pointer?
         size_t move_n = GetSize() / 2;
-
+        Page *parent_page = buffer_pool_manager->FetchPage
+                (recipient->GetParentPageId());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                (parent_page->GetData());
+        size_t cur_index = parent->ValueIndex(GetPageId());
+        size_t recipient_index = parent->ValueIndex
+                (recipient->GetParentPageId());
+        if (cur_index < recipient_index){
+            size_t num = GetSize() - move_n;
+            for (int i = move_n, j = 0; i < GetSize();i++,
+                    j++){
+                recipient->array[j + num].first = recipient->array[j].first;
+                recipient->array[j + num].second = recipient->array[j].second;
+                recipient->array[j].first = array[i].first;
+                recipient->array[j].second = array[i].second;
+           }
+            IncreaseSize(-num);
+            recipient->IncreaseSize(num);
+            recipient->SetNextPageId(GetNextPageId());
+            SetNextPageId(recipient->GetPageId());
+            //todo: need to correct previous page's meta data
+        }else{
+            for (int i = 0, j = GetSize(); i < move_n;i++, j++){
+                recipient->array[j].first = array[i].first;
+                recipient->array[j].second = array[i].second;
+                array[i].first = array[i + move_n].first;
+                array[i].second = array[i + move_n].second;
+            }
+            IncreaseSize(-move_n);
+            recipient->IncreaseSize(move_n);
+            recipient->SetNextPageId(GetPageId());
+            //todo: need the previous page id to correct its next page id
+        }
     }
 
     INDEX_TEMPLATE_ARGUMENTS
@@ -159,43 +191,111 @@ namespace cmudb {
 /*****************************************************************************
  * LOOKUP
  *****************************************************************************/
-/*
- * For the given key, check to see whether it exists in the leaf page. If it
- * does, then store its corresponding value in input "value" and return true.
- * If the key does not exist, then return false
- */
+    /**
+     * For the given key, check to see whether it exists in the leaf page. If it
+     * does, then store its corresponding value in input "value" and return
+     * true. If the key does not exist, then return false
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param value
+     * @param comparator
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     bool
     B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType &value,
                                        const KeyComparator &comparator) const {
+        for (int i = 0; i < GetSize(); i++){
+            if (comparator(array[i].first, key) == 0){
+                value = array[i].second;
+                return true;
+            }
+        }
         return false;
     }
 
 /*****************************************************************************
  * REMOVE
  *****************************************************************************/
-/*
- * First look through leaf page to see whether delete key exist or not. If
- * exist, perform deletion, otherwise return immdiately.
- * NOTE: store key&value pair continuously after deletion
- * @return   page size after deletion
- */
+    /**
+     * First look through leaf page to see whether delete key exist or not. If
+     * exist, perform deletion, otherwise return immediately.
+     * NOTE: store key&value pair continuously after deletion
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param comparator
+     * @return   page size after deletion
+     */
     INDEX_TEMPLATE_ARGUMENTS
     int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
             const KeyType &key, const KeyComparator &comparator) {
-        return 0;
+        for (int i = 0; i < GetSize(); i++){
+            if (comparator(KeyAt(i), key) == 0){
+                for (int j = i; j < (GetSize() - 1); j++){
+                    array[j].first = array[j + 1].first;
+                    array[j].second = array[j + 1].second;
+                }
+                IncreaseSize(-1);
+                return GetSize();
+            }
+        }
+        return GetSize();
     }
 
 /*****************************************************************************
  * MERGE
  *****************************************************************************/
-/*
- * Remove all of key & value pairs from this page to "recipient" page, then
- * update next page id
- */
+    /**
+     * Remove all of key & value pairs from this page to "recipient" page, then
+     * update next page id
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param recipient
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
-                                               int, BufferPoolManager *) {}
+                                               int, BufferPoolManager
+                                               *buffer_pool_manager) {
+        Page *parent_page = buffer_pool_manager->FetchPage
+                (recipient->GetParentPageId());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                (parent_page->GetData());
+        size_t cur_index = parent->ValueIndex(GetPageId());
+        size_t recipient_index = parent->ValueIndex
+                (recipient->GetParentPageId());
+        if (cur_index < recipient_index){
+            size_t recipient_size = recipient->GetSize();
+            for (int i = 0, j = 0; i < GetSize(); i++,j++){
+                recipient->array[j + recipient_size].first =
+                        recipient->array[j].first;
+                recipient->array[j + recipient_size].second =
+                        recipient->array[j].second;
+                recipient->array[j].first = array[i].first;
+                recipient->array[j].second = array[i].second;
+            }
+            recipient->IncreaseSize(GetSize());
+            IncreaseSize(-GetSize());
+            //todo: need to fix the next page id for th previous page
+        }else{
+            for (int i = 0, j = recipient->GetSize(); i < GetSize(); i++){
+                recipient->array[j].first = array[i].first;
+                recipient->array[j].second = array[i].second;
+            }
+            recipient->IncreaseSize(GetSize());
+            IncreaseSize(- GetSize());
+            recipient->SetNextPageId(GetNextPageId());
+            //todo: need to fix the next page id for the previous page
+        }
+    }
 
     INDEX_TEMPLATE_ARGUMENTS
     void
