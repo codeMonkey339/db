@@ -137,6 +137,8 @@ namespace cmudb {
     /**
      * Remove half of key & value pairs from this page to "recipient" page
      *
+     * this method is only used when Splitting a node, the recipient is
+     * always an elder sibling to the giving node
      * @tparam KeyType
      * @tparam ValueType
      * @tparam KeyComparator
@@ -147,41 +149,20 @@ namespace cmudb {
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
             BPlusTreeLeafPage *recipient,
             __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
+        assert(recipient->GetSize() == 0 && GetSize() == (GetMaxSize() - 1));
         int move_n = GetSize() / 2;
-        Page *parent_page = buffer_pool_manager->FetchPage
-                (recipient->GetParentPageId());
-        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
-                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
-                (parent_page->GetData());
-        size_t cur_index = parent->ValueIndex(GetPageId());
-        size_t recipient_index = parent->ValueIndex
-                (recipient->GetParentPageId());
-        if (cur_index < recipient_index){
-            size_t num = GetSize() - move_n;
-            for (int i = move_n, j = 0; i < GetSize();i++,
-                    j++){
-                recipient->array[j + num].first = recipient->array[j].first;
-                recipient->array[j + num].second = recipient->array[j].second;
-                recipient->array[j].first = array[i].first;
-                recipient->array[j].second = array[i].second;
-           }
-            IncreaseSize(-num);
-            recipient->IncreaseSize(num);
-            recipient->SetNextPageId(GetNextPageId());
-            SetNextPageId(recipient->GetPageId());
-            //todo: need to correct previous page's meta data
-        }else{
-            for (int i = 0, j = GetSize(); i < move_n;i++, j++){
-                recipient->array[j].first = array[i].first;
-                recipient->array[j].second = array[i].second;
-                array[i].first = array[i + move_n].first;
-                array[i].second = array[i + move_n].second;
-            }
-            IncreaseSize(-move_n);
-            recipient->IncreaseSize(move_n);
-            recipient->SetNextPageId(GetPageId());
-            //todo: need the previous page id to correct its next page id
+        size_t num = GetSize() - move_n;
+        for (int i = move_n, j = 0; i < GetSize();i++,
+                j++){
+            recipient->array[j + num].first = recipient->array[j].first;
+            recipient->array[j + num].second = recipient->array[j].second;
+            recipient->array[j].first = array[i].first;
+            recipient->array[j].second = array[i].second;
         }
+        IncreaseSize(-num);
+        recipient->IncreaseSize(num);
+        recipient->SetNextPageId(GetNextPageId());
+        SetNextPageId(recipient->GetPageId());
     }
 
     INDEX_TEMPLATE_ARGUMENTS
