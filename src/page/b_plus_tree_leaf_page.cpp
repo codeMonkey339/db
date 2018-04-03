@@ -147,7 +147,7 @@ namespace cmudb {
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
             BPlusTreeLeafPage *recipient,
             __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
-        size_t move_n = GetSize() / 2;
+        int move_n = GetSize() / 2;
         Page *parent_page = buffer_pool_manager->FetchPage
                 (recipient->GetParentPageId());
         B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
@@ -304,25 +304,71 @@ namespace cmudb {
 /*****************************************************************************
  * REDISTRIBUTE
  *****************************************************************************/
-/*
- * Remove the first key & value pair from this page to "recipient" page, then
- * update relavent key & value pair in its parent page.
- */
+    /**
+     * Remove the first key & value pair from this page to "recipient" page, then
+     * update relevant key & value pair in its parent page.
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param recipient
+     * @param buffer_pool_manager
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
             BPlusTreeLeafPage *recipient,
-            BufferPoolManager *buffer_pool_manager) {}
+            BufferPoolManager *buffer_pool_manager) {
+        size_t recipient_size = recipient->GetSize();
+        recipient->array[recipient_size].first = array[0].first;
+        recipient->array[recipient_size].second = array[0].second;
+        Page *parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                (parent_page->GetData());
+        size_t index_in_parent = parent->ValueIndex(GetParentPageId());
+        parent->SetKeyAt(index_in_parent, array[1].first);
+
+        for (int i = 1; i < GetSize(); i++){
+            array[i - 1].first = array[i].first;
+            array[i - 1].second = array[i].second;
+        }
+        recipient->IncreaseSize(1);
+        IncreaseSize(-1);
+    }
 
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {}
-/*
- * Remove the last key & value pair from this page to "recipient" page, then
- * update relavent key & value pair in its parent page.
- */
+    /**
+     * Remove the last key & value pair from this page to "recipient" page, then
+     * update relavent key & value pair in its parent page.
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param recipient
+     * @param parentIndex
+     * @param buffer_pool_manager
+     */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(
             BPlusTreeLeafPage *recipient, int parentIndex,
-            BufferPoolManager *buffer_pool_manager) {}
+            BufferPoolManager *buffer_pool_manager) {
+        int recipient_size = recipient->GetSize();
+        int cur_size = GetSize();
+        for (int i = 0; i < recipient_size; i++){
+            recipient->array[i + 1].first = recipient->array[i].first;
+            recipient->array[i + 1].second = recipient->array[i].second;
+        }
+        recipient->array[0].first  = array[cur_size - 1].first;
+        recipient->array[0].second = array[cur_size - 1].second;
+        Page *parent_page = buffer_pool_manager->FetchPage(parentIndex);
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                (parent_page->GetData());
+        parent->SetKeyAt(parentIndex, recipient->KeyAt(0));
+        recipient->IncreaseSize(1);
+        IncreaseSize(-1);
+    }
 
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(
@@ -365,6 +411,7 @@ namespace cmudb {
 
     /****************************** helper methods ***************************/
 
+    /****************************** explicit instantiation *******************/
     template
     class BPlusTreeLeafPage<GenericKey<4>, RID,
             GenericComparator<4>>;
