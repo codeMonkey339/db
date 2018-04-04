@@ -21,7 +21,7 @@
 #include "page/b_plus_tree_page.h"
 
 namespace cmudb {
-
+/* for the Moment replace ValueType with page_id_d */
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE                                         \
   BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
 

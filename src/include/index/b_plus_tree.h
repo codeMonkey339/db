@@ -113,6 +113,10 @@ namespace cmudb {
         bool coalesceable(size_t size1, size_t size2, size_t max_size){
             return (size1 + size2) <= max_size;
         }
+
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE* getParentPage(page_id_t id,
+                                                     BufferPoolManager
+                                                     *buffer_pool_manager);
         // member variable
         std::string index_name_;
         page_id_t root_page_id_;
