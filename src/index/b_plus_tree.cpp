@@ -383,8 +383,8 @@ namespace cmudb {
      */
     INDEX_TEMPLATE_ARGUMENTS
     bool
-    BPLUSTREE_TYPE::needCoalesceOrRedist(size_t size,
-                                         size_t max_size) { return !(size > std::ceil( max_size /2) && size <= (max_size -1));
+    BPLUSTREE_TYPE::needCoalesceOrRedist(size_t size, size_t max_size) {
+        return !(size > std::ceil( max_size /2) && size <= (max_size -1));
     }
 
     /**
@@ -404,13 +404,13 @@ namespace cmudb {
     bool BPLUSTREE_TYPE::try_coalesce(N *node, Transaction *tran) {
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
         page_id_t parent_page_id = page->GetParentPageId();
-        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
                 (buffer_pool_manager_->FetchPage(parent_page_id)->GetData());
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         KeyType separate_key = parent->KeyAt(keyIndex);
         if (keyIndex >= 1){
-            ValueType sib_val = parent->ValueAt(keyIndex - 1);
-            page_id_t young_sib_id = static_cast<RID>(sib_val).GetPageId();
+            page_id_t young_sib_id = parent->ValueAt(keyIndex - 1);
             Page *young_sib_page=buffer_pool_manager_->FetchPage(young_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (young_sib_page->GetData());
@@ -422,13 +422,13 @@ namespace cmudb {
             }
         }
         if (keyIndex < static_cast<size_t>(parent->GetSize() - 1)){
-            ValueType sib_val = parent->ValueAt(keyIndex + 1);
-            page_id_t old_sib_id = static_cast<RID>(sib_val).GetPageId();
+            //todo: should move entries from which page?
+            page_id_t old_sib_id = parent->ValueAt(keyIndex + 1);
             Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
-                ValueType separate_value = parent->ValueAt(keyIndex);
+                page_id_t separate_value = parent->ValueAt(keyIndex);
                 remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 return true;
@@ -450,7 +450,7 @@ namespace cmudb {
      * @param neighbor_node sibling page of input "node"
      * @param node input from method coalesceOrRedistribute()
      * @param parent parent page of input "node"
-     * @param index
+     * @param index the index of the larger pointer in parent
      * @param transaction
      * @return
      */
@@ -470,16 +470,15 @@ namespace cmudb {
 
         KeyType separate_key = parent->KeyAt(index);
         if (!page->IsLeafPage()){
-            size_t sib_old_size = young_sib->GetSize();
-            INTERNALPAGE_TYPE *page_internal =
-                    reinterpret_cast<INTERNALPAGE_TYPE*>(page);
-            INTERNALPAGE_TYPE *sib_internal =
-                    reinterpret_cast<INTERNALPAGE_TYPE*>(young_sib);
-            //todo: the way key/value removed are different. One case is key
-            // followed by value, the other is vice versa
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *page_internal =
+                    reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *sib_internal =
+                    reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(young_sib);
             page_internal->MoveAllTo(sib_internal, index,
                                      buffer_pool_manager_);
-            sib_internal->SetKeyAt(sib_old_size - 1, separate_key);
+            /* cur page is the larger page, all keys are moved to the young
+             * sibling. No need to update the key in parent of the young
+             * sibling, simply delete the current key in parent */
         }else{
             LEAFPAGE_TYPE *page_leaf =
                     reinterpret_cast<LEAFPAGE_TYPE*>(page);
