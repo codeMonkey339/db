@@ -415,25 +415,30 @@ namespace cmudb {
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (young_sib_page->GetData());
             if (Coalesce(sib_page, page, parent, keyIndex, tran)){
-                ValueType separate_value = parent->ValueAt(keyIndex);
+                page_id_t separate_value = parent->ValueAt(keyIndex);
                 remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(page->GetPageId());
+                buffer_pool_manager_->UnpinPage(parent_page_id, true);
+                buffer_pool_manager_->UnpinPage(young_sib_id, true);
                 return true;
             }
         }
         if (keyIndex < static_cast<size_t>(parent->GetSize() - 1)){
-            //todo: should move entries from which page?
             page_id_t old_sib_id = parent->ValueAt(keyIndex + 1);
             Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
                 page_id_t separate_value = parent->ValueAt(keyIndex);
+                //todo: should the parent be updated here?
                 remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
+                buffer_pool_manager_->UnpinPage(parent_page_id, true);
+                buffer_pool_manager_->UnpinPage(old_sib_id, true);
                 return true;
             }
         }
+        buffer_pool_manager_->UnpinPage(parent_page_id, false);
         return false;
     }
 
@@ -450,7 +455,7 @@ namespace cmudb {
      * @param neighbor_node sibling page of input "node"
      * @param node input from method coalesceOrRedistribute()
      * @param parent parent page of input "node"
-     * @param index the index of the larger pointer in parent
+     * @param index the index of the current page in the parent page
      * @param transaction
      * @return
      */
@@ -476,9 +481,6 @@ namespace cmudb {
                     reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(young_sib);
             page_internal->MoveAllTo(sib_internal, index,
                                      buffer_pool_manager_);
-            /* cur page is the larger page, all keys are moved to the young
-             * sibling. No need to update the key in parent of the young
-             * sibling, simply delete the current key in parent */
         }else{
             LEAFPAGE_TYPE *page_leaf =
                     reinterpret_cast<LEAFPAGE_TYPE*>(page);
@@ -486,7 +488,6 @@ namespace cmudb {
                     reinterpret_cast<LEAFPAGE_TYPE*>(young_sib);
             page_leaf->MoveAllTo(sib_leaf, index,
                                  buffer_pool_manager_);
-            sib_leaf->SetNextPageId(page_leaf->GetNextPageId());
         }
         return true;
     }

@@ -243,39 +243,14 @@ namespace cmudb {
      */
     INDEX_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
-                                               int, BufferPoolManager
-                                               *buffer_pool_manager) {
-        Page *parent_page = buffer_pool_manager->FetchPage
-                (recipient->GetParentPageId());
-        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
-                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
-                (parent_page->GetData());
-        size_t cur_index = parent->ValueIndex(GetPageId());
-        size_t recipient_index = parent->ValueIndex
-                (recipient->GetParentPageId());
-        if (cur_index < recipient_index){
-            size_t recipient_size = recipient->GetSize();
-            for (int i = 0, j = 0; i < GetSize(); i++,j++){
-                recipient->array[j + recipient_size].first =
-                        recipient->array[j].first;
-                recipient->array[j + recipient_size].second =
-                        recipient->array[j].second;
-                recipient->array[j].first = array[i].first;
-                recipient->array[j].second = array[i].second;
-            }
-            recipient->IncreaseSize(GetSize());
-            IncreaseSize(-GetSize());
-            //todo: need to fix the next page id for th previous page
-        }else{
-            for (int i = 0, j = recipient->GetSize(); i < GetSize(); i++){
-                recipient->array[j].first = array[i].first;
-                recipient->array[j].second = array[i].second;
-            }
-            recipient->IncreaseSize(GetSize());
-            IncreaseSize(- GetSize());
-            recipient->SetNextPageId(GetNextPageId());
-            //todo: need to fix the next page id for the previous page
+                                               int, BufferPoolManager*) {
+        for (int i = 0, j = recipient->GetSize(); i < GetSize(); i++){
+            recipient->array[j].first = array[i].first;
+            recipient->array[j].second = array[i].second;
         }
+        recipient->IncreaseSize(GetSize());
+        IncreaseSize(-1  * GetSize());
+        recipient->SetNextPageId(GetNextPageId());
     }
 
     INDEX_TEMPLATE_ARGUMENTS
