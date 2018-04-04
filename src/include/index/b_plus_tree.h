@@ -114,14 +114,16 @@ namespace cmudb {
             return (size1 + size2) < max_size;
         }
 
-        B_PLUS_TREE_INTERNAL_PAGE_TYPE* getParentPage(page_id_t id,
-                                                     BufferPoolManager
-                                                     *buffer_pool_manager);
         // member variable
         std::string index_name_;
         page_id_t root_page_id_;
         BufferPoolManager *buffer_pool_manager_;
         KeyComparator comparator_;
+
+    protected:
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE* getParentPage(page_id_t id,
+                                                      BufferPoolManager
+                                                      *buffer_pool_manager);
     };
 
 } // namespace cmudb

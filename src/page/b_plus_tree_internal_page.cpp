@@ -318,7 +318,7 @@ namespace cmudb {
  *****************************************************************************/
     /**
      * Remove the first key & value pair from this page to tail of "recipient"
-     * page, then update relavent key & value pair in its parent page.
+     * page, then update relevant key & value pair in its parent page.
      *
      * @tparam KeyType
      * @tparam ValueType
@@ -332,11 +332,12 @@ namespace cmudb {
             BufferPoolManager *buffer_pool_manager) {
         // implies that recipient is young sibling
         size_t recipient_size = recipient->GetSize();
+        page_id_t first_page_id = array[0].second;
         Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
         B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
                 reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
                 (page->GetData());
-        Page *first_page = buffer_pool_manager->FetchPage(array[0].second);
+        Page *first_page = buffer_pool_manager->FetchPage(first_page_id);
         BPlusTreePage *first_tree_page = reinterpret_cast<BPlusTreePage*>
         (first_page->GetData());
         first_tree_page->SetParentPageId(recipient->GetPageId());
@@ -345,6 +346,8 @@ namespace cmudb {
         recipient->array[recipient_size].second = array[0].second;
         parent->SetKeyAt(index_in_parent,KeyAt(1));
         Remove(0);
+        buffer_pool_manager->UnpinPage(GetParentPageId(), true);
+        buffer_pool_manager->UnpinPage(first_page_id, true);
     }
 
     INDEX_TEMPLATE_ARGUMENTS
@@ -362,13 +365,13 @@ namespace cmudb {
 
     /**
      * Remove the last key & value pair from this page to head of "recipient"
-     * page, then update relavent key & value pair in its parent page.
+     * page, then update relevant key & value pair in its parent page.
      *
      * @tparam KeyType
      * @tparam ValueType
      * @tparam KeyComparator
      * @param recipient
-     * @param parent_index
+     * @param parent_index the index in parent of the recipient page
      * @param buffer_pool_manager
      */
     INDEX_TEMPLATE_ARGUMENTS
@@ -376,19 +379,21 @@ namespace cmudb {
             BPlusTreeInternalPage *recipient, int parent_index,
             BufferPoolManager *buffer_pool_manager) {
         Page *page = buffer_pool_manager->FetchPage(GetParentPageId());
+        page_id_t last_page_id = ValueAt(GetSize()-1);
         B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent =
         reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page->GetData());
-        Page *last_page = buffer_pool_manager->FetchPage(ValueAt(GetSize() -1));
+        Page *last_page = buffer_pool_manager->FetchPage(last_page_id);
         BPlusTreePage *last_tree_page = reinterpret_cast<BPlusTreePage*>
         (last_page->GetData());
-
         last_tree_page->SetParentPageId(recipient->GetPageId());
         recipient->SetKeyAt(0, parent->KeyAt(parent_index));
-        InsertNodeAfter(recipient->ValueIndex(0), KeyAt(GetSize()), ValueAt
-                (GetSize()));
+        InsertNodeAfter(recipient->ValueIndex(0), KeyAt(GetSize() - 1), ValueAt
+                (GetSize() - 1));
         parent->SetKeyAt(parent_index, recipient->KeyAt(0));
-        Remove(GetSize());
+        Remove(GetSize() - 1);
         recipient->IncreaseSize(1);
+        buffer_pool_manager->UnpinPage(GetParentPageId(), true);
+        buffer_pool_manager->UnpinPage(last_page_id, true);
     }
 
     INDEX_TEMPLATE_ARGUMENTS

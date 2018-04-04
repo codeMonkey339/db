@@ -430,7 +430,6 @@ namespace cmudb {
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
                 page_id_t separate_value = parent->ValueAt(keyIndex);
-                //todo: should the parent be updated here?
                 remove_entry(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 buffer_pool_manager_->UnpinPage(parent_page_id, true);
@@ -497,27 +496,29 @@ namespace cmudb {
     bool BPLUSTREE_TYPE::try_redistribute(N *node, Transaction *tran){
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
         page_id_t parent_page_id = page->GetParentPageId();
-        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
-        (buffer_pool_manager_->FetchPage(parent_page_id)->GetData());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent = getParentPage
+                (parent_page_id, buffer_pool_manager_);
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         if (keyIndex >= 1){
             // young sibling existing case
-            ValueType sib_val = parent->ValueAt(keyIndex - 1);
-            page_id_t young_sib_id = static_cast<RID>(sib_val).GetPageId();
+            page_id_t young_sib_id = parent->ValueAt(keyIndex - 1);
             Page *young_sib_page=buffer_pool_manager_->FetchPage(young_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (young_sib_page->GetData());
-            Redistribute(sib_page, page, keyIndex);
+            Redistribute(sib_page, page, 1);
+            buffer_pool_manager_->UnpinPage(young_sib_id, true);
+            buffer_pool_manager_->UnpinPage(parent_page_id, true);
             return true;
         }
         if (keyIndex < static_cast<size_t >(parent->GetSize() - 1)){
             // old sibling existing case
-            ValueType sib_val = parent->ValueAt(keyIndex + 1);
-            page_id_t old_sib_id = static_cast<RID>(sib_val).GetPageId();
+            page_id_t old_sib_id = parent->ValueAt(keyIndex + 1);
             Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
-            Redistribute(page, sib_page, keyIndex);
+            Redistribute(page, sib_page, 0);
+            buffer_pool_manager_->UnpinPage(old_sib_id, true);
+            buffer_pool_manager_->UnpinPage(parent_page_id, true);
             return true;
         }
         return false; // the code should be un-reacheable!
@@ -530,6 +531,7 @@ namespace cmudb {
      * head of input "node".
      *
      * Using template N to represent either internal page or leaf page.
+     *
      * @tparam KeyType
      * @tparam ValueType
      * @tparam KeyComparator
@@ -541,27 +543,36 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     template<typename N>
     void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
-        BPlusTreePage *young_sib_page = reinterpret_cast<BPlusTreePage*>
+        BPlusTreePage *sib_node = reinterpret_cast<BPlusTreePage*>
         (neighbor_node);
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
-        page_id_t parent_page_id = page->GetPageId();
-        Page *parent_page = buffer_pool_manager_->FetchPage(parent_page_id);
-        INTERNALPAGE_TYPE *parent = reinterpret_cast<INTERNALPAGE_TYPE*>
-        (parent_page->GetData());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent = getParentPage
+                (page->GetParentPageId(), buffer_pool_manager_);
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         if (!page->IsLeafPage()){
-            INTERNALPAGE_TYPE *sib_page =
-                    reinterpret_cast<INTERNALPAGE_TYPE*>(young_sib_page);
-            INTERNALPAGE_TYPE *cur_page =
-                    reinterpret_cast<INTERNALPAGE_TYPE*>(page);
-            sib_page->MoveLastToFrontOf(cur_page, keyIndex,buffer_pool_manager_);
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *sib_page =
+                    reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(sib_node);
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *cur_page =
+                    reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
+            if (index == 0){
+                sib_page->MoveFirstToEndOf(cur_page, buffer_pool_manager_);
+            }else{
+                sib_page->MoveLastToFrontOf(cur_page, keyIndex,
+                                            buffer_pool_manager_);
+            }
         }else{
-            LEAFPAGE_TYPE *sib_page =
-                    reinterpret_cast<LEAFPAGE_TYPE*>(young_sib_page);
-            LEAFPAGE_TYPE *cur_page =
-                    reinterpret_cast<LEAFPAGE_TYPE*>(page);
-            sib_page->MoveLastToFrontOf(cur_page, keyIndex,buffer_pool_manager_);
+            B_PLUS_TREE_LEAF_PAGE_TYPE *sib_page =
+                    reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(sib_node);
+            B_PLUS_TREE_LEAF_PAGE_TYPE *cur_page =
+                    reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
+            if (index == 0){
+                sib_page->MoveFirstToEndOf(cur_page, buffer_pool_manager_);
+            }else{
+                sib_page->MoveLastToFrontOf(cur_page, keyIndex,
+                                            buffer_pool_manager_);
+            }
         }
+        buffer_pool_manager_->UnpinPage(page->GetParentPageId(), true);
     }
 /*
  * Update root page if necessary
@@ -689,6 +700,8 @@ namespace cmudb {
                 (parent_page->GetData());
         return parent;
     }
+
+
 
     template
     class BPlusTree<GenericKey<4>, RID, GenericComparator<4>>;
