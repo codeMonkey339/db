@@ -299,7 +299,6 @@ namespace cmudb {
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
         B_PLUS_TREE_LEAF_PAGE_TYPE *leaf = getLeafPage(key, page, transaction);
         ValueType value = leaf->GetPageId();
-        leaf->RemoveAndDeleteRecord(key, comparator_);
         remove_entry(key, value, leaf, transaction);
     }
 
@@ -332,9 +331,11 @@ namespace cmudb {
         }
 
         if (page->IsRootPage() && page->GetSize() == 1){
-            INTERNALPAGE_TYPE *root =reinterpret_cast<INTERNALPAGE_TYPE*>(page);
-            ValueType new_root = root->ValueAt(0);
-            root_page_id_ = static_cast<RID>(new_root).GetPageId();
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *root
+                    =reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
+            page_id_t new_root = root->ValueAt(0);
+            root_page_id_ = new_root;
+            buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
             buffer_pool_manager_->DeletePage(page->GetPageId());
         }else{
             if (needCoalesceOrRedist(page->GetSize(), page->GetMaxSize())){
@@ -383,9 +384,7 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     bool
     BPLUSTREE_TYPE::needCoalesceOrRedist(size_t size,
-                                         size_t max_size) {
-        //todo: this condition needs to be updated
-        return size < (max_size + 1) / 2;
+                                         size_t max_size) { return !(size > std::ceil( max_size /2) && size <= (max_size -1));
     }
 
     /**
