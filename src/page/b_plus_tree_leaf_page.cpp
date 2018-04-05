@@ -33,8 +33,9 @@ namespace cmudb {
         SetSize(0);
         SetPageId(page_id);
         SetParentPageId(parent_id);
-        size_t size = (PAGE_SIZE - sizeof(B_PLUS_TREE_LEAF_PAGE_TYPE) /
-                                           sizeof(MappingType));
+        size_t size =
+                (PAGE_SIZE - sizeof(B_PLUS_TREE_LEAF_PAGE_TYPE) / sizeof(MappingType));
+        size &= (~1);
         SetMaxSize(size);
         SetNextPageId(INVALID_PAGE_ID);
         //todo: where to set the previous page id?
@@ -54,7 +55,9 @@ namespace cmudb {
     }
 
     INDEX_TEMPLATE_ARGUMENTS
-    void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {}
+    void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
+        this->next_page_id_ = next_page_id;
+    }
 
     /**
      * Helper method to find the first index i so that array[i].first >= key
@@ -107,16 +110,24 @@ namespace cmudb {
      */
     INDEX_TEMPLATE_ARGUMENTS
     const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
-        return array[index];
+        MappingType result= array[index];
+        return result;
     }
 
 /*****************************************************************************
  * INSERTION
  *****************************************************************************/
-/*
- * Insert key & value pair into leaf page ordered by key
- * @return  page size after insertion
- */
+    /**
+     * Insert key & value pair into leaf page ordered by key
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param key
+     * @param value
+     * @param comparator
+     * @return  page size after insertion
+     */
     INDEX_TEMPLATE_ARGUMENTS
     int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
                                            const ValueType &value,
@@ -128,7 +139,8 @@ namespace cmudb {
         }
         array[index].first = key;
         array[index].second = value;
-        return index;
+        IncreaseSize(1);
+        return GetSize();
     }
 
 /*****************************************************************************
@@ -139,6 +151,7 @@ namespace cmudb {
      *
      * this method is only used when Splitting a node, the recipient is
      * always an elder sibling to the giving node
+     *
      * @tparam KeyType
      * @tparam ValueType
      * @tparam KeyComparator
@@ -154,10 +167,14 @@ namespace cmudb {
         size_t num = GetSize() - move_n;
         for (int i = move_n, j = 0; i < GetSize();i++,
                 j++){
-            recipient->array[j + num].first = recipient->array[j].first;
-            recipient->array[j + num].second = recipient->array[j].second;
             recipient->array[j].first = array[i].first;
             recipient->array[j].second = array[i].second;
+            page_id_t  page_id = static_cast<RID>(array[i].second).GetPageId();
+            Page *page = buffer_pool_manager->FetchPage(page_id);
+            BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
+            (page->GetData());
+            tree_page->SetParentPageId(recipient->GetPageId());
+            buffer_pool_manager->UnpinPage(page_id, true);
         }
         IncreaseSize(-num);
         recipient->IncreaseSize(num);
@@ -236,6 +253,8 @@ namespace cmudb {
      * Remove all of key & value pairs from this page to "recipient" page, then
      * update next page id
      *
+     * the recipient is always a young sibling
+     *
      * @tparam KeyType
      * @tparam ValueType
      * @tparam KeyComparator
@@ -247,9 +266,12 @@ namespace cmudb {
         for (int i = 0, j = recipient->GetSize(); i < GetSize(); i++){
             recipient->array[j].first = array[i].first;
             recipient->array[j].second = array[i].second;
+            /* no need to update parent, since for leaf page entries are no
+             * longer pointing to tree pages
+             */
         }
         recipient->IncreaseSize(GetSize());
-        IncreaseSize(-1  * GetSize());
+        IncreaseSize(-1 * GetSize());
         recipient->SetNextPageId(GetNextPageId());
     }
 
@@ -283,21 +305,15 @@ namespace cmudb {
         B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
                 reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
                 (parent_page->GetData());
-        Page *first_page = buffer_pool_manager->FetchPage
-                (static_cast<RID>(first_value).GetPageId());
-        B_PLUS_TREE_LEAF_PAGE_TYPE *first =
-                reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(first_page);
         size_t index_in_parent = parent->ValueIndex(GetParentPageId());
         parent->SetKeyAt(index_in_parent, array[1].first);
         for (int i = 1; i < GetSize(); i++){
             array[i - 1].first = array[i].first;
             array[i - 1].second = array[i].second;
         }
-        first->SetParentPageId(recipient->GetPageId());
         recipient->IncreaseSize(1);
         IncreaseSize(-1);
         buffer_pool_manager->UnpinPage(GetParentPageId(), true);
-        buffer_pool_manager->UnpinPage(static_cast<RID>(first_value).GetPageId(), true);
     }
 
     INDEX_TEMPLATE_ARGUMENTS

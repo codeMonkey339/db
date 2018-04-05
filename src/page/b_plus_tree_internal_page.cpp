@@ -29,9 +29,10 @@ namespace cmudb {
         SetSize(0);
         SetPageId(page_id);
         SetParentPageId(parent_id);
-        //todo: is this the correct way to calculate max size?
         size_t size = (PAGE_SIZE - sizeof(B_PLUS_TREE_INTERNAL_PAGE_TYPE)) /
                 sizeof(MappingType);
+        // make the size of internal node always even
+        size &= (~1);
         SetMaxSize(size);
         //todo: need to allocated memory to array
     }
@@ -56,7 +57,7 @@ namespace cmudb {
     void
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
         MappingType entry = array[index];
-        entry.first = key;
+        array[index].first = key;
     }
 
     /**
@@ -81,10 +82,16 @@ namespace cmudb {
         return -1;
     }
 
-/*
- * Helper method to get the value associated with input "index"(a.k.a array
- * offset)
- */
+    /**
+     * Helper method to get the value associated with input "index"(a.k.a array
+     * offset)
+     *
+     * @tparam KeyType
+     * @tparam ValueType
+     * @tparam KeyComparator
+     * @param index
+     * @return
+     */
     INDEX_TEMPLATE_ARGUMENTS
     ValueType
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
@@ -170,9 +177,8 @@ namespace cmudb {
         int old_index = ValueIndex(old_value);
         assert(old_index != -1);
         for (int i = GetSize() - 1; i > old_index; i--){
-            MappingType old_pair = array[i];
-            MappingType new_pair = array[i + 1];
-            new_pair.swap(old_pair);
+            array[i + 1].first = array[i].first;
+            array[i + 1].second = array[i].second;
         }
         array[old_index + 1].first = new_key;
         array[old_index + 1].second = new_value;
@@ -186,6 +192,8 @@ namespace cmudb {
     /**
      * Remove half of key & value pairs from this page to "recipient" page
      *
+     * the recipient will always be an elder sibling of current node
+     *
      * @tparam KeyType
      * @tparam ValueType
      * @tparam KeyComparator
@@ -198,20 +206,17 @@ namespace cmudb {
             BufferPoolManager *buffer_pool_manager) {
         size_t move_n = GetSize() / 2;
         for (int i = move_n, j = 0; i < GetSize(); i++, j++){
-            recipient->array[j].first = array[move_n].first;
-            recipient->array[j].second = array[move_n].second;
-        }
-
-        SetSize(move_n);
-        recipient->IncreaseSize(GetSize() - move_n);
-        for (int i = 0; i < GetSize(); i++){
-            page_id_t  page_id = recipient->ValueIndex(i);
+            recipient->array[j].first = array[i].first;
+            recipient->array[j].second = array[i].second;
+            page_id_t  page_id = recipient->ValueIndex(array[i].second);
             Page *page = buffer_pool_manager->FetchPage(page_id);
             BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
             (page->GetData());
             tree_page->SetParentPageId(recipient->GetPageId());
             buffer_pool_manager->UnpinPage(page_id, true);
         }
+        recipient->IncreaseSize(GetSize() - move_n);
+        SetSize(move_n);
     }
 
     INDEX_TEMPLATE_ARGUMENTS
@@ -241,7 +246,7 @@ namespace cmudb {
             array[i].first = array[i + 1].first;
             array[i].second = array[i + 1].second;
         }
-        IncreaseSize( -1);
+        IncreaseSize(-1);
     }
 
     /**
@@ -266,9 +271,9 @@ namespace cmudb {
      * Remove all of key & value pairs from this page to "recipient" page, then
      * update relevant key & value pair in its parent page.
      *
-     * the young node is always the recipient, so there is no need to update
+     * the recipient is always a young sibling, so there is no need to update
      * the entry in the parent node. Since all larger entries are shifted to
-     * the smaller node, then the index of key of the smaller node in the
+     * the smaller node, then the index of key of the younger node in the
      * parent won't have to be updated
      *
      * @tparam KeyType
@@ -291,7 +296,6 @@ namespace cmudb {
                         (parent_page->GetData());
                 KeyType key_in_parent = parent->KeyAt(index_in_parent);
                 recipient->array[i].first = key_in_parent;
-                buffer_pool_manager->UnpinPage(GetParentPageId(), true);
                 buffer_pool_manager->UnpinPage(GetParentPageId(), false);
             }else{
                 recipient->array[i].first = array[j].first;
