@@ -110,8 +110,7 @@ namespace cmudb {
      */
     INDEX_TEMPLATE_ARGUMENTS
     const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
-        MappingType result= array[index];
-        return result;
+        return array[index];
     }
 
 /*****************************************************************************
@@ -298,7 +297,6 @@ namespace cmudb {
             BufferPoolManager *buffer_pool_manager) {
         //implies that the recipient is young sibling
         size_t recipient_size = recipient->GetSize();
-        ValueType first_value = array[0].second;
         recipient->array[recipient_size].first = array[0].first;
         recipient->array[recipient_size].second = array[0].second;
         Page *parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
@@ -333,18 +331,13 @@ namespace cmudb {
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(
             BPlusTreeLeafPage *recipient, int parentIndex,
             BufferPoolManager *buffer_pool_manager) {
+        // implies that the recipient is an elder sibling
         int recipient_size = recipient->GetSize();
         int cur_size = GetSize();
         Page *parent_page = buffer_pool_manager->FetchPage(parentIndex);
         B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
                 reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
                 (parent_page->GetData());
-        ValueType first_value = array[GetSize() - 1].second;
-        Page *first_page = buffer_pool_manager->FetchPage
-                (static_cast<RID>(first_value).GetPageId());
-        B_PLUS_TREE_LEAF_PAGE_TYPE *first =
-                reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>
-                (first_page->GetData());
         for (int i = 0; i < recipient_size; i++){
             recipient->array[i + 1].first = recipient->array[i].first;
             recipient->array[i + 1].second = recipient->array[i].second;
@@ -352,12 +345,9 @@ namespace cmudb {
         recipient->array[0].first  = array[cur_size - 1].first;
         recipient->array[0].second = array[cur_size - 1].second;
         parent->SetKeyAt(parentIndex, recipient->KeyAt(0));
-        first->SetParentPageId(recipient->GetPageId());
         recipient->IncreaseSize(1);
         IncreaseSize(-1);
         buffer_pool_manager->UnpinPage(parentIndex, true);
-        buffer_pool_manager->UnpinPage(
-                static_cast<RID>(first_value).GetPageId(), true);
     }
 
     INDEX_TEMPLATE_ARGUMENTS

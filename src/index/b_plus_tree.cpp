@@ -319,16 +319,35 @@ namespace cmudb {
     template <typename N>
     void BPLUSTREE_TYPE::remove_entry(const KeyType &key, ValueType &value,
                                       N *node, Transaction *transaction) {
+        //todo: fix code here
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
-        if (page->IsLeafPage()){
-            reinterpret_cast<LEAFPAGE_TYPE*>(page)->RemoveAndDeleteRecord
-                    (key, comparator_);
+        reinterpret_cast<LEAFPAGE_TYPE*>(page)->RemoveAndDeleteRecord
+                (key, comparator_);
+        if (page->IsRootPage() && page->GetSize() == 1){
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *root
+                    =reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
+            ValueType new_root = root->ValueAt(0);
+            root_page_id_ = static_cast<RID>(new_root).GetPageId();
+            buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+            buffer_pool_manager_->DeletePage(page->GetPageId());
         }else{
-            INTERNALPAGE_TYPE *page_internal =
-                    reinterpret_cast<INTERNALPAGE_TYPE*>(page);
-            size_t keyIndex = page_internal->ValueIndex(value);
-            page_internal->Remove(keyIndex);
+            if (needCoalesceOrRedist(page->GetSize(), page->GetMaxSize())){
+                CoalesceOrRedistribute(node, transaction);
+            }
         }
+    }
+
+
+    //todo: need to clear this method and remove_entry
+    INDEX_TEMPLATE_ARGUMENTS
+    template <typename N>
+    void BPLUSTREE_TYPE::remove_entry_internal(const KeyType &key, page_id_t
+    &value, N *node, Transaction *transaction) {
+        BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
+        INTERNALPAGE_TYPE *page_internal =
+                reinterpret_cast<INTERNALPAGE_TYPE*>(page);
+        size_t keyIndex = page_internal->ValueIndex(value);
+        page_internal->Remove(keyIndex);
 
         if (page->IsRootPage() && page->GetSize() == 1){
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *root
@@ -399,6 +418,7 @@ namespace cmudb {
      * @param tran
      * @return
      */
+    //todo: basically impossible to reuse typedef here? page_id_t and RID mixes!
     INDEX_TEMPLATE_ARGUMENTS
     template<typename N>
     bool BPLUSTREE_TYPE::try_coalesce(N *node, Transaction *tran) {
@@ -416,7 +436,7 @@ namespace cmudb {
             (young_sib_page->GetData());
             if (Coalesce(sib_page, page, parent, keyIndex, tran)){
                 page_id_t separate_value = parent->ValueAt(keyIndex);
-                remove_entry(separate_key, separate_value, parent, tran);
+                remove_entry_internal(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(page->GetPageId());
                 buffer_pool_manager_->UnpinPage(parent_page_id, true);
                 buffer_pool_manager_->UnpinPage(young_sib_id, true);
@@ -430,7 +450,7 @@ namespace cmudb {
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
                 page_id_t separate_value = parent->ValueAt(keyIndex);
-                remove_entry(separate_key, separate_value, parent, tran);
+                remove_entry_internal(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 buffer_pool_manager_->UnpinPage(parent_page_id, true);
                 buffer_pool_manager_->UnpinPage(old_sib_id, true);

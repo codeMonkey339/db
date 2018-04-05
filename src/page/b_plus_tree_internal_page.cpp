@@ -56,7 +56,6 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     void
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
-        MappingType entry = array[index];
         array[index].first = key;
     }
 

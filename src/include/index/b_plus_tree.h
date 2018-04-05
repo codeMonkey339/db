@@ -106,6 +106,9 @@ namespace cmudb {
         void remove_entry(const KeyType &key, ValueType &value, N *node,
                           Transaction *transaction);
         template<typename N>
+        void remove_entry_internal(const KeyType &key, page_id_t &value, N
+        *node, Transaction * transaction);
+        template<typename N>
         bool try_coalesce(N *node, Transaction *tran);
         template<typename N>
         bool try_redistribute(N *node, Transaction *tran);
