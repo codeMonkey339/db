@@ -352,7 +352,9 @@ namespace cmudb {
         if (page->IsRootPage() && page->GetSize() == 1){
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *root
                     =reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
-            page_id_t new_root = root->ValueAt(0);
+            ValueType value = root->ValueAt(0);
+            page_id_t new_root;
+            memcpy(&new_root, &value, sizeof(page_id_t));
             root_page_id_ = new_root;
             buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
             buffer_pool_manager_->DeletePage(page->GetPageId());
@@ -430,12 +432,16 @@ namespace cmudb {
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         KeyType separate_key = parent->KeyAt(keyIndex);
         if (keyIndex >= 1){
-            page_id_t young_sib_id = parent->ValueAt(keyIndex - 1);
+            ValueType value = parent->ValueAt(keyIndex - 1);
+            page_id_t young_sib_id;
+            memcpy(&young_sib_id, &value, sizeof(page_id_t));
             Page *young_sib_page=buffer_pool_manager_->FetchPage(young_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (young_sib_page->GetData());
             if (Coalesce(sib_page, page, parent, keyIndex, tran)){
-                page_id_t separate_value = parent->ValueAt(keyIndex);
+                ValueType value = parent->ValueAt(keyIndex);
+                page_id_t separate_value;
+                memcpy(&separate_value, &value, sizeof(page_id_t));
                 remove_entry_internal(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(page->GetPageId());
                 buffer_pool_manager_->UnpinPage(parent_page_id, true);
@@ -444,12 +450,16 @@ namespace cmudb {
             }
         }
         if (keyIndex < static_cast<size_t>(parent->GetSize() - 1)){
-            page_id_t old_sib_id = parent->ValueAt(keyIndex + 1);
+            ValueType value = parent->ValueAt(keyIndex + 1);
+            page_id_t old_sib_id;
+            memcpy(&old_sib_id, &value, sizeof(page_id_t));
             Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());
             if (Coalesce(page, sib_page, parent, keyIndex, tran)){
-                page_id_t separate_value = parent->ValueAt(keyIndex);
+                ValueType value = parent->ValueAt(keyIndex);
+                page_id_t separate_value;
+                memcpy(&separate_value, &value, sizeof(page_id_t));
                 remove_entry_internal(separate_key, separate_value, parent, tran);
                 buffer_pool_manager_->DeletePage(sib_page->GetPageId());
                 buffer_pool_manager_->UnpinPage(parent_page_id, true);
@@ -492,7 +502,6 @@ namespace cmudb {
             return false;
         }
 
-        KeyType separate_key = parent->KeyAt(index);
         if (!page->IsLeafPage()){
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *page_internal =
                     reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
@@ -521,7 +530,9 @@ namespace cmudb {
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         if (keyIndex >= 1){
             // young sibling existing case
-            page_id_t young_sib_id = parent->ValueAt(keyIndex - 1);
+            ValueType value = parent->ValueAt(keyIndex - 1);
+            page_id_t young_sib_id;
+            memcpy(&young_sib_id, &value, sizeof(page_id_t));
             Page *young_sib_page=buffer_pool_manager_->FetchPage(young_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (young_sib_page->GetData());
@@ -532,7 +543,9 @@ namespace cmudb {
         }
         if (keyIndex < static_cast<size_t >(parent->GetSize() - 1)){
             // old sibling existing case
-            page_id_t old_sib_id = parent->ValueAt(keyIndex + 1);
+            ValueType value = parent->ValueAt(keyIndex + 1);
+            page_id_t old_sib_id;
+            memcpy(&old_sib_id, &value, sizeof(parent_page_id));
             Page *old_sib_page =buffer_pool_manager_->FetchPage(old_sib_id);
             BPlusTreePage *sib_page = reinterpret_cast<BPlusTreePage*>
             (old_sib_page->GetData());

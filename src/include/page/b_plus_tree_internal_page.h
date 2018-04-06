@@ -22,6 +22,7 @@
 
 namespace cmudb {
 /* for the Moment replace ValueType with page_id_d */
+    //todo:need to replace the ValueType with page_id_t???
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE                                         \
   BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
 
