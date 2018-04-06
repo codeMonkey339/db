@@ -22,7 +22,7 @@ namespace cmudb {
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
 #define LEAFPAGE_TYPE BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>
-#define INTERNALPAGE_TYPE BPlusTreeInternalPage<KeyType,page_id_t,KeyComparator>
+#define INTERNALPAGE_TYPE BPlusTreeInternalPage<KeyType,KeyComparator>
 
 // Main class providing the API for the Interactive B+ Tree.
     INDEX_TEMPLATE_ARGUMENTS
@@ -86,7 +86,7 @@ namespace cmudb {
         template<typename N>
         bool Coalesce(
                 N *&neighbor_node, N *&node,
-                BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *&parent,
+                BPlusTreeInternalPage<KeyType, KeyComparator> *&parent,
                 int index, Transaction *transaction = nullptr);
 
         template<typename N>

@@ -492,7 +492,7 @@ namespace cmudb {
     template<typename N>
     bool BPLUSTREE_TYPE::Coalesce(
             N *&neighbor_node, N *&node,
-            BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *&parent,
+            BPlusTreeInternalPage<KeyType, KeyComparator> *&parent,
             int index, Transaction *transaction) {
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
         BPlusTreePage *young_sib =

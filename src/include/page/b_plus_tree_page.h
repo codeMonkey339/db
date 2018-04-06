@@ -26,10 +26,17 @@
 
 namespace cmudb {
 
-#define MappingType std::pair<KeyType, ValueType>
 
 #define INDEX_TEMPLATE_ARGUMENTS                                               \
   template <typename KeyType, typename ValueType, typename KeyComparator>
+
+#define INTERNAL_PAGE_TEMPLATE_ARGUMENTS                                               \
+  template <typename KeyType, typename KeyComparator>
+
+#define MappingType std::pair<KeyType, ValueType>
+#define MappingType_PAGE_ID std::pair<KeyType, page_id_t>
+
+
 
 // define page type enum
     enum class IndexPageType {

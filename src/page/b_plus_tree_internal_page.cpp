@@ -22,7 +22,7 @@ namespace cmudb {
      * @param page_id
      * @param parent_id
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
                                               page_id_t parent_id) {
         SetPageType(IndexPageType::INTERNAL_PAGE);
@@ -30,7 +30,7 @@ namespace cmudb {
         SetPageId(page_id);
         SetParentPageId(parent_id);
         size_t size = (PAGE_SIZE - sizeof(B_PLUS_TREE_INTERNAL_PAGE_TYPE)) /
-                sizeof(MappingType);
+                sizeof(MappingType_PAGE_ID);
         // make the size of internal node always even
         size &= (~1);
         SetMaxSize(size);
@@ -47,13 +47,13 @@ namespace cmudb {
      * @param index
      * @return
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     KeyType B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const {
         KeyType key = array[index].first;
         return key;
     }
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
         array[index].first = key;
@@ -69,12 +69,12 @@ namespace cmudb {
      * @param value
      * @return if found, return the index; otherwise return -1
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     int
-    B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
+    B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const page_id_t &value) const {
         for (size_t i = 0; i < static_cast<size_t>(GetSize()); i++){
-            ValueType v = array[i].second;
-            if (memcmp(&v, &value, sizeof(ValueType)) == 0){
+            page_id_t v = array[i].second;
+            if (memcmp(&v, &value, sizeof(page_id_t)) == 0){
                 return i;
             }
         }
@@ -91,11 +91,11 @@ namespace cmudb {
      * @param index
      * @return
      */
-    INDEX_TEMPLATE_ARGUMENTS
-    ValueType
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
+    page_id_t
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
         assert(index < GetMaxSize() && index >= 0);
-        ValueType v = array[index].second;
+        page_id_t v = array[index].second;
         return v;
     }
 
@@ -114,8 +114,8 @@ namespace cmudb {
      * @param comparator
      * @return
      */
-    INDEX_TEMPLATE_ARGUMENTS
-    ValueType
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
+    page_id_t
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                            const KeyComparator &comparator) const {
         for (size_t i = 1; i < static_cast<size_t>(GetSize()); i++){
@@ -147,10 +147,10 @@ namespace cmudb {
      * @param new_key
      * @param new_value
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(
-            const ValueType &old_value, const KeyType &new_key,
-            const ValueType &new_value) {
+            const page_id_t &old_value, const KeyType &new_key,
+            const page_id_t &new_value) {
         array[0].second = old_value;
         array[1].first = new_key;
         array[1].second = new_value;
@@ -168,10 +168,10 @@ namespace cmudb {
      * @param new_value
      * @return:  new size after insertion
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
-            const ValueType &old_value, const KeyType &new_key,
-            const ValueType &new_value) {
+            const page_id_t &old_value, const KeyType &new_key,
+            const page_id_t &new_value) {
         assert(GetSize() < GetMaxSize());
         int old_index = ValueIndex(old_value);
         assert(old_index != -1);
@@ -199,7 +199,7 @@ namespace cmudb {
      * @param recipient
      * @param buffer_pool_manager
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
             BPlusTreeInternalPage *recipient,
             BufferPoolManager *buffer_pool_manager) {
@@ -218,9 +218,9 @@ namespace cmudb {
         SetSize(move_n);
     }
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
-            MappingType *items, int size,
+            MappingType_PAGE_ID *items, int size,
             BufferPoolManager *buffer_pool_manager) {
         //todo:
     }
@@ -238,7 +238,7 @@ namespace cmudb {
      * @tparam KeyComparator
      * @param index
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
         assert(index >= 0 && index < GetSize());
         for (int i = index; i < (GetSize() - 1); i++){
@@ -257,9 +257,9 @@ namespace cmudb {
      * @tparam KeyComparator
      * @return
      */
-    INDEX_TEMPLATE_ARGUMENTS
-    ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
-        ValueType value = array[0].second;
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
+    page_id_t B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
+        page_id_t value = array[0].second;
         Remove(0);
         return value;
     }
@@ -282,7 +282,7 @@ namespace cmudb {
      * @param index_in_parent index of the current value in the parent page
      * @param buffer_pool_manager
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
             BPlusTreeInternalPage *recipient, int index_in_parent,
             BufferPoolManager *buffer_pool_manager) {
@@ -311,9 +311,9 @@ namespace cmudb {
     }
 
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyAllFrom(
-            MappingType *items, int size,
+            MappingType_PAGE_ID *items, int size,
             BufferPoolManager *buffer_pool_manager) {}
 
 /*****************************************************************************
@@ -329,7 +329,7 @@ namespace cmudb {
      * @param recipient
      * @param buffer_pool_manager
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
             BPlusTreeInternalPage *recipient,
             BufferPoolManager *buffer_pool_manager) {
@@ -353,9 +353,9 @@ namespace cmudb {
         buffer_pool_manager->UnpinPage(first_page_id, true);
     }
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(
-            const MappingType &pair, BufferPoolManager *buffer_pool_manager) {
+            const MappingType_PAGE_ID &pair, BufferPoolManager *buffer_pool_manager) {
         array[GetSize()].first = pair.first;
         array[GetSize()].second = pair.second;
         IncreaseSize(1);
@@ -377,7 +377,7 @@ namespace cmudb {
      * @param parent_index the index in parent of the recipient page
      * @param buffer_pool_manager
      */
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(
             BPlusTreeInternalPage *recipient, int parent_index,
             BufferPoolManager *buffer_pool_manager) {
@@ -399,15 +399,15 @@ namespace cmudb {
         buffer_pool_manager->UnpinPage(last_page_id, true);
     }
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyFirstFrom(
-            const MappingType &pair, int parent_index,
+            const MappingType_PAGE_ID &pair, int parent_index,
             BufferPoolManager *buffer_pool_manager) {}
 
 /*****************************************************************************
  * DEBUG
  *****************************************************************************/
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     void B_PLUS_TREE_INTERNAL_PAGE_TYPE::QueueUpChildren(
             std::queue<BPlusTreePage *> *queue,
             BufferPoolManager *buffer_pool_manager) {
@@ -422,7 +422,7 @@ namespace cmudb {
         }
     }
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     std::string B_PLUS_TREE_INTERNAL_PAGE_TYPE::ToString(bool verbose) const {
         if (GetSize() == 0) {
             return "";
@@ -454,22 +454,17 @@ namespace cmudb {
 
 // valuetype for internalNode should be page id_t
     template
-    class BPlusTreeInternalPage<GenericKey<4>, page_id_t,
-            GenericComparator<4>>;
+    class BPlusTreeInternalPage<GenericKey<4>, GenericComparator<4>>;
 
     template
-    class BPlusTreeInternalPage<GenericKey<8>, page_id_t,
-            GenericComparator<8>>;
+    class BPlusTreeInternalPage<GenericKey<8>, GenericComparator<8>>;
 
     template
-    class BPlusTreeInternalPage<GenericKey<16>, page_id_t,
-            GenericComparator<16>>;
+    class BPlusTreeInternalPage<GenericKey<16>, GenericComparator<16>>;
 
     template
-    class BPlusTreeInternalPage<GenericKey<32>, page_id_t,
-            GenericComparator<32>>;
+    class BPlusTreeInternalPage<GenericKey<32>, GenericComparator<32>>;
 
     template
-    class BPlusTreeInternalPage<GenericKey<64>, page_id_t,
-            GenericComparator<64>>;
+    class BPlusTreeInternalPage<GenericKey<64>, GenericComparator<64>>;
 } // namespace cmudb

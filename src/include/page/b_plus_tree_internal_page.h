@@ -24,9 +24,9 @@ namespace cmudb {
 /* for the Moment replace ValueType with page_id_d */
     //todo:need to replace the ValueType with page_id_t???
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE                                         \
-  BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
+  BPlusTreeInternalPage<KeyType, KeyComparator>
 
-    INDEX_TEMPLATE_ARGUMENTS
+    INTERNAL_PAGE_TEMPLATE_ARGUMENTS
     class BPlusTreeInternalPage : public BPlusTreePage {
     public:
         // must call initialize method after "create" a new node
@@ -36,22 +36,22 @@ namespace cmudb {
 
         void SetKeyAt(int index, const KeyType &key);
 
-        int ValueIndex(const ValueType &value) const;
+        int ValueIndex(const page_id_t &value) const;
 
-        ValueType ValueAt(int index) const;
+        page_id_t ValueAt(int index) const;
 
-        ValueType
+        page_id_t
         Lookup(const KeyType &key, const KeyComparator &comparator) const;
 
-        void PopulateNewRoot(const ValueType &old_value, const KeyType &new_key,
-                             const ValueType &new_value);
+        void PopulateNewRoot(const page_id_t &old_value, const KeyType &new_key,
+                             const page_id_t &new_value);
 
-        int InsertNodeAfter(const ValueType &old_value, const KeyType &new_key,
-                            const ValueType &new_value);
+        int InsertNodeAfter(const page_id_t &old_value, const KeyType &new_key,
+                            const page_id_t &new_value);
 
         void Remove(int index);
 
-        ValueType RemoveAndReturnOnlyChild();
+        page_id_t RemoveAndReturnOnlyChild();
 
         void MoveHalfTo(BPlusTreeInternalPage *recipient,
                         BufferPoolManager *buffer_pool_manager);
@@ -73,20 +73,20 @@ namespace cmudb {
                              BufferPoolManager *buffer_pool_manager);
 
     private:
-        void CopyHalfFrom(MappingType *items, int size,
+        void CopyHalfFrom(MappingType_PAGE_ID *items, int size,
                           BufferPoolManager *buffer_pool_manager);
 
-        void CopyAllFrom(MappingType *items, int size,
+        void CopyAllFrom(MappingType_PAGE_ID *items, int size,
                          BufferPoolManager *buffer_pool_manager);
 
-        void CopyLastFrom(const MappingType &pair,
+        void CopyLastFrom(const MappingType_PAGE_ID &pair,
                           BufferPoolManager *buffer_pool_manager);
 
-        void CopyFirstFrom(const MappingType &pair, int parent_index,
+        void CopyFirstFrom(const MappingType_PAGE_ID &pair, int parent_index,
                            BufferPoolManager *buffer_pool_manager);
         /*************************** helper mehtods ***************************/
 
 
-        MappingType array[0];
+        MappingType_PAGE_ID array[0];
     };
 } // namespace cmudb
