@@ -81,6 +81,17 @@ namespace cmudb {
         return -1;
     }
 
+    INDEX_TEMPLATE_ARGUMENTS
+    int B_PLUS_TREE_LEAF_PAGE_TYPE::findInsertPos(KeyType key,
+                                                  KeyComparator comparator) {
+        for (int i = 1; i < GetSize(); i++){
+            if (comparator(key, array[i].first) < 0){
+                return i - 1;
+            }
+        }
+        return (GetSize() - 1);
+    }
+
     /**
      * Helper method to find and return the key associated with input "index"(a.k.a
      * array offset)
@@ -131,7 +142,11 @@ namespace cmudb {
     int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
                                            const ValueType &value,
                                            const KeyComparator &comparator) {
-        int index = KeyIndex(key, comparator);
+        int index = findInsertPos(key, comparator);
+        if (comparator(array[index].first, key) == 0){
+            return GetSize();
+        }
+        index = index > 0?index:0;
         for (int i = GetSize(); i > index; i--){
             array[i].first = array[i - 1].first;
             array[i].second = array[i - 1].second;

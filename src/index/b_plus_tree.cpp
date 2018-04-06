@@ -118,6 +118,7 @@ namespace cmudb {
             reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(root->GetData());
             leaf->Init(root_page_id_, INVALID_PAGE_ID);
             leaf->Insert(key, value, comparator_);
+            buffer_pool_manager_->UnpinPage(root_page_id_, true);
         }
     }
 
@@ -148,20 +149,17 @@ namespace cmudb {
         }
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
         B_PLUS_TREE_LEAF_PAGE_TYPE *leaf = getLeafPage(key, page, transaction);
-        if (leaf->KeyIndex(key, comparator_) < 0){
-            //note: always leave 1 to allow the last insertion
-            leaf->Insert(key, value, comparator_);
-            if(leaf->GetSize() >= (leaf->GetMaxSize() - 1)){
-                B_PLUS_TREE_LEAF_PAGE_TYPE *new_page = Split(leaf);
-                /* for leaf pages, key at index 0 carries valid keys */
-                InsertIntoParent(leaf, new_page->KeyAt(0), new_page,
-                                 transaction);
-            }
-            return true;
-        }else{
-            // duplicate key
-            return false;
+        //note: always leave 1 to allow the last insertion
+        size_t before_size = leaf->GetSize();
+        size_t after_size = leaf->Insert(key, value, comparator_);
+        if(leaf->GetSize() >= (leaf->GetMaxSize() - 1)){
+            B_PLUS_TREE_LEAF_PAGE_TYPE *new_page = Split(leaf);
+            /* for leaf pages, key at index 0 carries valid keys */
+            InsertIntoParent(leaf, new_page->KeyAt(0), new_page,
+                             transaction);
         }
+        buffer_pool_manager_->UnpinPage(root_page_id_, true);
+        return before_size != after_size;
    }
 
     INDEX_TEMPLATE_ARGUMENTS
@@ -178,7 +176,9 @@ namespace cmudb {
                     reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
             page_id_t value = internalPage->Lookup(key, comparator_);
             page = buffer_pool_manager_->FetchPage(value);
-            return getLeafPage(key, page, transaction);
+            B_PLUS_TREE_LEAF_PAGE_TYPE *res =getLeafPage(key, page,transaction);
+            buffer_pool_manager_->UnpinPage(value, false);
+            return res;
         }
 
     }
@@ -215,6 +215,7 @@ namespace cmudb {
                     reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page->GetData());
             new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
+            buffer_pool_manager_->UnpinPage(id, true);
             return reinterpret_cast<N*>(new_page);
         }else{
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *old_page =
@@ -223,6 +224,7 @@ namespace cmudb {
                     reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page->GetData());
             new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
+            buffer_pool_manager_->UnpinPage(id, true);
             return reinterpret_cast<N*>(new_page);
         }
     }
@@ -265,14 +267,19 @@ namespace cmudb {
                 new_root_page->PopulateNewRoot(old_node->GetPageId(), key,
                                                new_page->GetPageId());
             }
+            buffer_pool_manager_->UnpinPage(root_page_id_, true);
         }else{
-            B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent = getParentPage
-                    (old_node->GetParentPageId(), buffer_pool_manager_);
+            Page *page = buffer_pool_manager_->FetchPage
+                    (old_node->GetParentPageId());
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                    reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                    (page->GetData());
             parent->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
             if (parent->GetSize() >= (parent->GetMaxSize() - 1)){
                 B_PLUS_TREE_INTERNAL_PAGE_TYPE *next_node = Split(parent);
                 InsertIntoParent(parent, next_node->KeyAt(0), next_node);
             }
+            buffer_pool_manager_->UnpinPage(old_node->GetParentPageId(), true);
         }
     }
 
@@ -525,8 +532,11 @@ namespace cmudb {
     bool BPLUSTREE_TYPE::try_redistribute(N *node, Transaction *tran){
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
         page_id_t parent_page_id = page->GetParentPageId();
-        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent = getParentPage
-                (parent_page_id, buffer_pool_manager_);
+        Page *parent_page = buffer_pool_manager_->FetchPage
+                (parent_page_id);
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent_page
+                        ->GetData());
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         if (keyIndex >= 1){
             // young sibling existing case
@@ -579,8 +589,11 @@ namespace cmudb {
         BPlusTreePage *sib_node = reinterpret_cast<BPlusTreePage*>
         (neighbor_node);
         BPlusTreePage *page = reinterpret_cast<BPlusTreePage*>(node);
-        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent = getParentPage
-                (page->GetParentPageId(), buffer_pool_manager_);
+        Page *parent_page = buffer_pool_manager_->FetchPage
+                (page->GetParentPageId());
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
+                reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent_page
+                        ->GetData());
         size_t keyIndex = parent->ValueIndex(page->GetPageId());
         if (!page->IsLeafPage()){
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *sib_page =

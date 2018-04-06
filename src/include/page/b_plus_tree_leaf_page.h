@@ -73,7 +73,8 @@ namespace cmudb {
 
         // Debug
         std::string ToString(bool verbose = false) const;
-
+        /**************************** helper methods ***********************/
+        int findInsertPos(KeyType key, KeyComparator comparator);
     private:
         void CopyHalfFrom(MappingType *items, int size);
 
@@ -86,6 +87,8 @@ namespace cmudb {
 
         page_id_t next_page_id_;
         MappingType array[0];
+    /******************************** helper methods **********************/
+
 
     };
 } // namespace cmudb
