@@ -148,6 +148,8 @@ namespace cmudb {
             return false;
         }
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+        (page->GetData());
+        page_id_t old_root_id = root_page_id_;
         B_PLUS_TREE_LEAF_PAGE_TYPE *leaf = getLeafPage(key, page, transaction);
         //note: always leave 1 to allow the last insertion
         size_t before_size = leaf->GetSize();
@@ -157,8 +159,12 @@ namespace cmudb {
             /* for leaf pages, key at index 0 carries valid keys */
             InsertIntoParent(leaf, new_page->KeyAt(0), new_page,
                              transaction);
+            buffer_pool_manager_->UnpinPage(new_page->GetPageId(), true);
         }
-        buffer_pool_manager_->UnpinPage(root_page_id_, true);
+        if (leaf->GetPageId() != old_root_id){
+            buffer_pool_manager_->UnpinPage(old_root_id, true);
+        }
+        buffer_pool_manager_->UnpinPage(leaf->GetPageId(), true);
         return before_size != after_size;
    }
 
@@ -177,7 +183,6 @@ namespace cmudb {
             page_id_t value = internalPage->Lookup(key, comparator_);
             page = buffer_pool_manager_->FetchPage(value);
             B_PLUS_TREE_LEAF_PAGE_TYPE *res =getLeafPage(key, page,transaction);
-            buffer_pool_manager_->UnpinPage(value, false);
             return res;
         }
 
@@ -215,7 +220,6 @@ namespace cmudb {
                     reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page->GetData());
             new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
-            buffer_pool_manager_->UnpinPage(id, true);
             return reinterpret_cast<N*>(new_page);
         }else{
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *old_page =
@@ -224,7 +228,6 @@ namespace cmudb {
                     reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page->GetData());
             new_page->Init(id, old_page->GetParentPageId());
             old_page->MoveHalfTo(new_page, buffer_pool_manager_);
-            buffer_pool_manager_->UnpinPage(id, true);
             return reinterpret_cast<N*>(new_page);
         }
     }
@@ -253,24 +256,17 @@ namespace cmudb {
             Page *new_page = buffer_pool_manager_->NewPage(root_page_id_);
             old_node->SetParentPageId(root_page_id_);
             new_node->SetParentPageId(root_page_id_);
-            if (old_node->IsLeafPage()){
-                B_PLUS_TREE_INTERNAL_PAGE_TYPE *new_root_page =
-                        reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
-                        (new_page->GetData());
-                new_root_page->Init(root_page_id_, INVALID_PAGE_ID);
-                new_root_page->PopulateNewRoot(old_node->GetPageId(), key,
-                                               new_page->GetPageId());
-            }else{
-                B_PLUS_TREE_INTERNAL_PAGE_TYPE *new_root_page =
-                        reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(new_page);
-                new_root_page->Init(root_page_id_, INVALID_PAGE_ID);
-                new_root_page->PopulateNewRoot(old_node->GetPageId(), key,
-                                               new_page->GetPageId());
-            }
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE *new_root_page =
+                    reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
+                    (new_page->GetData());
+            new_root_page->Init(root_page_id_, INVALID_PAGE_ID);
+            new_root_page->PopulateNewRoot(old_node->GetPageId(), key,
+                                           new_node->GetPageId());
             buffer_pool_manager_->UnpinPage(root_page_id_, true);
         }else{
+            size_t old_parent_id = old_node->GetParentPageId();
             Page *page = buffer_pool_manager_->FetchPage
-                    (old_node->GetParentPageId());
+                    (old_parent_id);
             B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent =
                     reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
                     (page->GetData());
@@ -278,8 +274,9 @@ namespace cmudb {
             if (parent->GetSize() >= (parent->GetMaxSize() - 1)){
                 B_PLUS_TREE_INTERNAL_PAGE_TYPE *next_node = Split(parent);
                 InsertIntoParent(parent, next_node->KeyAt(0), next_node);
+                buffer_pool_manager_->UnpinPage(next_node->GetPageId(), true);
             }
-            buffer_pool_manager_->UnpinPage(old_node->GetParentPageId(), true);
+            buffer_pool_manager_->UnpinPage(old_parent_id, true);
         }
     }
 

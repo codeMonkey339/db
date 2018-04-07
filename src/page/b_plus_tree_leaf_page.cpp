@@ -34,7 +34,7 @@ namespace cmudb {
         SetPageId(page_id);
         SetParentPageId(parent_id);
         size_t size =
-                (PAGE_SIZE - sizeof(B_PLUS_TREE_LEAF_PAGE_TYPE) / sizeof(MappingType));
+                (PAGE_SIZE - sizeof(B_PLUS_TREE_LEAF_PAGE_TYPE)) / sizeof(MappingType);
         size &= (~1);
         SetMaxSize(size);
         SetNextPageId(INVALID_PAGE_ID);
@@ -86,10 +86,10 @@ namespace cmudb {
                                                   KeyComparator comparator) {
         for (int i = 1; i < GetSize(); i++){
             if (comparator(key, array[i].first) < 0){
-                return i - 1;
+                return i;
             }
         }
-        return (GetSize() - 1);
+        return GetSize();
     }
 
     /**
@@ -177,21 +177,14 @@ namespace cmudb {
             BPlusTreeLeafPage *recipient,
             __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
         assert(recipient->GetSize() == 0 && GetSize() == (GetMaxSize() - 1));
-        int move_n = GetSize() / 2;
-        size_t num = GetSize() - move_n;
+        int move_n = GetSize() / 2 + 1;
         for (int i = move_n, j = 0; i < GetSize();i++,
                 j++){
             recipient->array[j].first = array[i].first;
             recipient->array[j].second = array[i].second;
-            page_id_t  page_id = static_cast<RID>(array[i].second).GetPageId();
-            Page *page = buffer_pool_manager->FetchPage(page_id);
-            BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
-            (page->GetData());
-            tree_page->SetParentPageId(recipient->GetPageId());
-            buffer_pool_manager->UnpinPage(page_id, true);
+            recipient->IncreaseSize(1);
+            IncreaseSize(-1);
         }
-        IncreaseSize(-num);
-        recipient->IncreaseSize(num);
         recipient->SetNextPageId(GetNextPageId());
         SetNextPageId(recipient->GetPageId());
     }

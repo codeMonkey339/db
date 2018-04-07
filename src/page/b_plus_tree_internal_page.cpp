@@ -3,6 +3,7 @@
  */
 #include <iostream>
 #include <sstream>
+#include <include/common/logger.h>
 
 #include "common/exception.h"
 #include "page/b_plus_tree_internal_page.h"
@@ -118,13 +119,15 @@ namespace cmudb {
     page_id_t
     B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                            const KeyComparator &comparator) const {
-        for (size_t i = 1; i < static_cast<size_t>(GetSize()); i++){
+        size_t i = 1;
+        for (; i < static_cast<size_t>(GetSize()); i++){
             KeyType k = array[i].first;
             if (comparator(key, k) < 0){
                 return array[i - 1].second;
             }
         }
-        return INVALID_PAGE_ID;
+        assert(i < static_cast<size_t >(GetMaxSize() - 1));
+        return array[i - 1].second;
     }
 
 /*****************************************************************************
@@ -154,6 +157,7 @@ namespace cmudb {
         array[0].second = old_value;
         array[1].first = new_key;
         array[1].second = new_value;
+        IncreaseSize(2);
     }
     /**
      * Insert new_key & new_value pair right after the pair with its value ==
@@ -207,7 +211,7 @@ namespace cmudb {
         for (int i = move_n, j = 0; i < GetSize(); i++, j++){
             recipient->array[j].first = array[i].first;
             recipient->array[j].second = array[i].second;
-            page_id_t  page_id = recipient->ValueIndex(array[i].second);
+            page_id_t  page_id = array[i].second;
             Page *page = buffer_pool_manager->FetchPage(page_id);
             BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
             (page->GetData());

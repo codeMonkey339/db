@@ -1,3 +1,4 @@
+#include <include/common/logger.h>
 #include "buffer/buffer_pool_manager.h"
 
 namespace cmudb {
@@ -17,7 +18,7 @@ namespace cmudb {
         page_table_ = new ExtendibleHash<page_id_t, Page *>(BUCKET_SIZE);
         replacer_ = new LRUReplacer<Page *>;
         free_list_ = new std::list<Page *>;
-
+        memset(pages_, 0, pool_size_ * sizeof(Page));
         // put all the pages into free list
         for (size_t i = 0; i < pool_size_; ++i) {
             free_list_->push_back(&pages_[i]);
@@ -69,15 +70,18 @@ namespace cmudb {
                 if (replacer_->Victim(page)){
                     if (page->is_dirty_){
                         disk_manager_->WritePage(page->page_id_, page->data_);
+                        page->is_dirty_ = false;
                     }
                     assert(page->pin_count_ == 0);
+                    assert(!page->is_dirty_);
                     page_table_->Remove(page->page_id_);
-                    page_table_->Insert(page_id, page);
                     pin(page);
                 }else{ // no page to evict
+                    LOG_INFO("unable to evict a page for FetchPage\nL");
                     return nullptr;
                 }
             }
+            page_table_->Insert(page_id, page);
             disk_manager_->ReadPage(page_id, page->data_);
             page->page_id_ = page_id;
             return page;
@@ -96,9 +100,11 @@ namespace cmudb {
     bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
         Page *page;
         if (!page_table_->Find(page_id, page)){
+            LOG_INFO("unpin a page not in use\n");
             return false;
         }else{
             if (page->pin_count_ <= 0){
+                LOG_INFO("unpin a page with a count <= 0\n");
                 return false;
             }else{
                 unpin(page);
@@ -152,11 +158,16 @@ namespace cmudb {
         if (!page_table_->Find(page_id, page)){
             return false;
         }else{
+            assert(page->page_id_ == 0);
             if (page->pin_count_ != 0){
                 return false;
             }else{
+                page->page_id_ = INVALID_PAGE_ID;
                 disk_manager_->DeallocatePage(page_id);
                 page_table_->Remove(page_id);
+                assert(!page->is_dirty_);
+                assert(page->pin_count_ == 0);
+                assert(page->page_id_ == INVALID_PAGE_ID);
                 free_list_->push_back(page);
                 return true;
             }
@@ -191,6 +202,7 @@ namespace cmudb {
                     disk_manager_->WritePage(page->page_id_, page->data_);
                 }
                 assert(page->pin_count_ == 0);
+                page->is_dirty_ = false;
                 page_table_->Remove(page->page_id_);
             }
         }

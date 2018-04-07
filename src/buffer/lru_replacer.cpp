@@ -3,6 +3,7 @@
  */
 #include <queue>
 #include <memory>
+#include <assert.h>
 #include "buffer/lru_replacer.h"
 #include "page/page.h"
 
