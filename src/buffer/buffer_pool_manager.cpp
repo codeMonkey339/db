@@ -110,6 +110,7 @@ namespace cmudb {
                 unpin(page);
                 page->is_dirty_ = is_dirty;
                 if (page->pin_count_ == 0){
+                    page->page_id_ = INVALID_PAGE_ID;
                     replacer_->Insert(page);
                 }
                 return true;
