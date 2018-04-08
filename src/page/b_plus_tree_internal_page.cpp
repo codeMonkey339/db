@@ -126,7 +126,6 @@ namespace cmudb {
                 return array[i - 1].second;
             }
         }
-        assert(i < static_cast<size_t >(GetMaxSize() - 1));
         return array[i - 1].second;
     }
 
@@ -436,6 +435,9 @@ namespace cmudb {
             os << "[pageId: " << GetPageId() << " parentId: "
                << GetParentPageId()
                << "]<" << GetSize() << "> ";
+        }else{
+            //todo: remove
+            return"";
         }
 
         int entry = verbose ? 0 : 1;

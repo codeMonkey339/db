@@ -50,16 +50,22 @@ namespace cmudb {
             return false;
         }
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
-        return getValue(page, key, result, transaction);
+        bool res = getValue(page, key, result, transaction);
+        buffer_pool_manager_->UnpinPage(root_page_id_, false);
+        return res;
     }
 
     INDEX_TEMPLATE_ARGUMENTS
     bool BPLUSTREE_TYPE::getValue(Page *page, const KeyType &key,
                                   std::vector<ValueType> &result,
                                   Transaction *trans) {
+        page_id_t  old_page_id = page->GetPageId();
         LEAFPAGE_TYPE *leaf = getLeafPage(key, page, trans);
         ValueType value;
         bool res = leaf->Lookup(key, value, comparator_);
+        if (old_page_id != leaf->GetPageId()){
+            buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
+        }
         if (res){
             result.push_back(value);
             return true;
@@ -154,8 +160,11 @@ namespace cmudb {
         //note: always leave 1 to allow the last insertion
         size_t before_size = leaf->GetSize();
         size_t after_size = leaf->Insert(key, value, comparator_);
-        if(leaf->GetSize() >= (leaf->GetMaxSize() - 1)){
+        if(leaf->GetSize() >= leaf->GetMaxSize()){
+            //std::cout << leaf->ToString(false) << std::endl;
             B_PLUS_TREE_LEAF_PAGE_TYPE *new_page = Split(leaf);
+            //std::cout << leaf->ToString(false) << std::endl;
+            //std::cout << new_page->ToString(false) << std::endl;
             /* for leaf pages, key at index 0 carries valid keys */
             InsertIntoParent(leaf, new_page->KeyAt(0), new_page,
                              transaction);
@@ -274,7 +283,7 @@ namespace cmudb {
                     reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>
                     (page->GetData());
             parent->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
-            if (parent->GetSize() >= (parent->GetMaxSize() - 1)){
+            if (parent->GetSize() >= parent->GetMaxSize()){
                 B_PLUS_TREE_INTERNAL_PAGE_TYPE *next_node = Split(parent);
                 InsertIntoParent(parent, next_node->KeyAt(0), next_node);
                 buffer_pool_manager_->UnpinPage(next_node->GetPageId(), true);
@@ -696,7 +705,50 @@ namespace cmudb {
  * print out whole b+tree sturcture, rank by rank
  */
     INDEX_TEMPLATE_ARGUMENTS
-    std::string BPLUSTREE_TYPE::ToString(bool verbose) { return "Empty tree"; }
+    std::string BPLUSTREE_TYPE::ToString(bool verbose) {
+        Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+         BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
+        (page->GetData());
+        std::list<BPlusTreePage*> l;
+        l.push_back(tree_page);
+        toString(l, verbose);
+        return "end\n";
+    }
+
+    INDEX_TEMPLATE_ARGUMENTS
+    void BPLUSTREE_TYPE::toString(std::list<BPlusTreePage *> l, bool verbose) {
+        if (l.size() <= 0){
+            return;
+        }
+        std::list<BPlusTreePage*> nextLevel;
+        while(l.size() > 0){
+            BPlusTreePage *page = l.front();
+            l.pop_front();
+            if (page->IsLeafPage()){
+                LEAFPAGE_TYPE *leaf = reinterpret_cast<LEAFPAGE_TYPE*>(page);
+                std::cout << leaf->ToString(verbose);
+                buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+            }else{
+                INTERNALPAGE_TYPE *internal =
+                        reinterpret_cast<INTERNALPAGE_TYPE*>(page);
+                std::cout << internal->ToString(verbose);
+                for (size_t i = 0; i < static_cast<size_t>(internal->GetSize
+                        ()); i++){
+                    page_id_t  value = internal->ValueAt(i);
+                    Page *next_page = buffer_pool_manager_->FetchPage(value);
+                    BPlusTreePage *next_tree_page =
+                            reinterpret_cast<BPlusTreePage*>
+                            (next_page->GetData());
+                    nextLevel.push_back(next_tree_page);
+                }
+                buffer_pool_manager_->UnpinPage(internal->GetPageId(), false);
+            }
+        }
+        std::cout << std::endl;
+        toString(nextLevel, verbose);
+    }
+
+
 
 /*
  * This method is used for test only

@@ -176,15 +176,15 @@ namespace cmudb {
     void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
             BPlusTreeLeafPage *recipient,
             __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
-        assert(recipient->GetSize() == 0 && GetSize() == (GetMaxSize() - 1));
-        int move_n = GetSize() / 2 + 1;
+        assert(recipient->GetSize() == 0 && GetSize() == GetMaxSize());
+        int move_n = GetSize() / 2;
         for (int i = move_n, j = 0; i < GetSize();i++,
                 j++){
             recipient->array[j].first = array[i].first;
             recipient->array[j].second = array[i].second;
-            recipient->IncreaseSize(1);
-            IncreaseSize(-1);
         }
+        recipient->IncreaseSize(GetSize() - move_n);
+        IncreaseSize(move_n - GetSize());
         recipient->SetNextPageId(GetNextPageId());
         SetNextPageId(recipient->GetPageId());
     }
