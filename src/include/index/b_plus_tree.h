@@ -65,6 +65,8 @@ namespace cmudb {
         // expose for test purpose
         B_PLUS_TREE_LEAF_PAGE_TYPE *FindLeafPage(const KeyType &key,
                                                  bool leftMost = false);
+        // helper methods
+        void walkLeaves(KeyType &key);
 
     private:
         void StartNewTree(const KeyType &key, const ValueType &value);

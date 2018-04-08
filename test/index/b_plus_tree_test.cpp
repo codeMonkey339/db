@@ -330,7 +330,7 @@ namespace cmudb {
         auto header_page = bpm->NewPage(page_id);
         (void) header_page;
 
-        int64_t scale = 960;
+        int64_t scale = 1200;
         //int64_t scale = 1000;
         std::vector<int64_t> keys;
         for (int64_t key = 1; key < scale; key++) {
@@ -343,7 +343,8 @@ namespace cmudb {
             index_key.SetFromInteger(key);
             tree.Insert(index_key, rid, transaction);
         }
-        //std::cout << tree.ToString(false) << std::endl;
+        index_key.SetFromInteger(1);
+        tree.walkLeaves(index_key);
         std::vector<RID> rids;
         for (auto key : keys) {
             rids.clear();

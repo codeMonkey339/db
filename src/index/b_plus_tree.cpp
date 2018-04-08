@@ -710,6 +710,7 @@ namespace cmudb {
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
          BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
         (page->GetData());
+        buffer_pool_manager_->UnpinPage(root_page_id_, false);
         std::list<BPlusTreePage*> l;
         l.push_back(tree_page);
         toString(l, verbose);
@@ -728,21 +729,21 @@ namespace cmudb {
             if (page->IsLeafPage()){
                 LEAFPAGE_TYPE *leaf = reinterpret_cast<LEAFPAGE_TYPE*>(page);
                 std::cout << leaf->ToString(verbose);
-                buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
             }else{
                 INTERNALPAGE_TYPE *internal =
                         reinterpret_cast<INTERNALPAGE_TYPE*>(page);
+                buffer_pool_manager_->UnpinPage(internal->GetPageId(), false);
                 std::cout << internal->ToString(verbose);
                 for (size_t i = 0; i < static_cast<size_t>(internal->GetSize
                         ()); i++){
                     page_id_t  value = internal->ValueAt(i);
                     Page *next_page = buffer_pool_manager_->FetchPage(value);
+                    buffer_pool_manager_->UnpinPage(value, false);
                     BPlusTreePage *next_tree_page =
                             reinterpret_cast<BPlusTreePage*>
                             (next_page->GetData());
                     nextLevel.push_back(next_tree_page);
                 }
-                buffer_pool_manager_->UnpinPage(internal->GetPageId(), false);
             }
         }
         std::cout << std::endl;
@@ -801,6 +802,22 @@ namespace cmudb {
     }
 
 
+    INDEX_TEMPLATE_ARGUMENTS
+    void BPLUSTREE_TYPE::walkLeaves(KeyType &key) {
+        Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+        LEAFPAGE_TYPE * leaf = getLeafPage(key, page, NULL);
+        buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+        while(leaf != NULL){
+            page_id_t id = leaf->GetNextPageId();
+            std::cout << leaf->ToString(false);
+            buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
+            Page *page = buffer_pool_manager_->FetchPage(id);
+            LEAFPAGE_TYPE *next = reinterpret_cast<LEAFPAGE_TYPE*>
+            (page->GetData());
+            leaf = next;
+        }
+        std::cout << std::endl;
+    }
 
     template
     class BPlusTree<GenericKey<4>, RID, GenericComparator<4>>;
