@@ -49,6 +49,7 @@ namespace cmudb {
         if (root_page_id_ == INVALID_PAGE_ID){
             return false;
         }
+
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
         bool res = getValue(page, key, result, transaction);
         buffer_pool_manager_->UnpinPage(root_page_id_, false);

@@ -56,6 +56,10 @@ namespace cmudb {
             return nullptr;
         }
         if (page_table_->Find(page_id, page)){
+            if (page->pin_count_ == 0){
+                // pin_count is 0, still in use, in able-to-evict list
+                replacer_->Erase(page);
+            }
             pin(page);
             return page;
         }else{
