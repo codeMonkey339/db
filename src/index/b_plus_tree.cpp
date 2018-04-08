@@ -183,6 +183,9 @@ namespace cmudb {
             page_id_t value = internalPage->Lookup(key, comparator_);
             page = buffer_pool_manager_->FetchPage(value);
             B_PLUS_TREE_LEAF_PAGE_TYPE *res =getLeafPage(key, page,transaction);
+            if (!treePage->IsRootPage()){
+                buffer_pool_manager_->UnpinPage(treePage->GetPageId(), false);
+            }
             return res;
         }
 
