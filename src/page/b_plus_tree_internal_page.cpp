@@ -437,7 +437,7 @@ namespace cmudb {
                << "]<" << GetSize() << "> ";
         }else{
             //todo: remove
-            return"";
+            //return"";
         }
 
         int entry = verbose ? 0 : 1;

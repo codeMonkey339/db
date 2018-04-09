@@ -167,6 +167,10 @@ namespace cmudb {
             //std::cout << leaf->ToString(false) << std::endl;
             //std::cout << new_page->ToString(false) << std::endl;
             /* for leaf pages, key at index 0 carries valid keys */
+            bool debug = false;
+            if (debug){
+                std::cout << new_page->ToString(false) << std::endl;
+            }
             InsertIntoParent(leaf, new_page->KeyAt(0), new_page,
                              transaction);
             buffer_pool_manager_->UnpinPage(new_page->GetPageId(), true);
@@ -184,14 +188,21 @@ namespace cmudb {
                                 Transaction *transaction) {
         BPlusTreePage *treePage = reinterpret_cast<BPlusTreePage*>(page->GetData
                 ());
+        bool debug = false;
         if (treePage->IsLeafPage()){
             LEAFPAGE_TYPE *leafPage = reinterpret_cast<LEAFPAGE_TYPE*>(treePage);
+            if (debug){
+                std::cout << leafPage->ToString(false) << std::endl;
+            }
             return leafPage;
         }else{
             INTERNALPAGE_TYPE *internalPage =
                     reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
             page_id_t value = internalPage->Lookup(key, comparator_);
             page = buffer_pool_manager_->FetchPage(value);
+            if (debug){
+                std::cout << internalPage->ToString(false) << std::endl;
+            }
             B_PLUS_TREE_LEAF_PAGE_TYPE *res =getLeafPage(key, page,transaction);
             if (!treePage->IsRootPage()){
                 buffer_pool_manager_->UnpinPage(treePage->GetPageId(), false);
@@ -288,6 +299,10 @@ namespace cmudb {
                 B_PLUS_TREE_INTERNAL_PAGE_TYPE *next_node = Split(parent);
                 InsertIntoParent(parent, next_node->KeyAt(0), next_node);
                 buffer_pool_manager_->UnpinPage(next_node->GetPageId(), true);
+            }
+            bool debug = false;
+            if (debug){
+                std::cout << parent->ToString(false) << std::endl;
             }
             buffer_pool_manager_->UnpinPage(old_parent_id, true);
         }

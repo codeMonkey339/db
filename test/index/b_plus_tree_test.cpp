@@ -344,7 +344,7 @@ namespace cmudb {
             tree.Insert(index_key, rid, transaction);
         }
         index_key.SetFromInteger(1);
-        tree.walkLeaves(index_key);
+        //tree.walkLeaves(index_key);
         std::vector<RID> rids;
         for (auto key : keys) {
             rids.clear();
