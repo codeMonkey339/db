@@ -112,7 +112,7 @@ namespace cmudb {
                 return false;
             }else{
                 unpin(page);
-                page->is_dirty_ = is_dirty;
+                page->is_dirty_ = is_dirty || page->is_dirty_;
                 if (page->pin_count_ == 0){
                     replacer_->Insert(page);
                 }
