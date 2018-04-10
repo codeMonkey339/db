@@ -671,8 +671,10 @@ namespace cmudb {
  */
     INDEX_TEMPLATE_ARGUMENTS
     INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
-        LEAFPAGE_TYPE *leaf = getLeafPage()
-        //todo:
+        KeyType key;
+        LEAFPAGE_TYPE *left_most = FindLeafPage(key, true);
+        return INDEXITERATOR_TYPE(left_most->GetPageId(), left_most->KeyAt(0)
+                , buffer_pool_manager_, comparator_);
     }
 
 /*
@@ -682,7 +684,11 @@ namespace cmudb {
  */
     INDEX_TEMPLATE_ARGUMENTS
     INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
-        return INDEXITERATOR_TYPE();
+        Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+        LEAFPAGE_TYPE *leaf = getLeafPage(key, page, nullptr);
+        buffer_pool_manager_->UnpinPage(root_page_id_, false);
+        return INDEXITERATOR_TYPE(leaf->GetPageId(), key,
+                                  buffer_pool_manager_, comparator_);
     }
 
 /*****************************************************************************
@@ -695,8 +701,38 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
                                                              bool leftMost) {
-        return nullptr;
+        if (leftMost){
+            Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+            LEAFPAGE_TYPE *left_most = getLeftMostPage(page);
+            return left_most;
+        }else{
+            Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+            LEAFPAGE_TYPE *leaf = getLeafPage(key, page, nullptr);
+            buffer_pool_manager_->UnpinPage(root_page_id_, false);
+            return leaf;
+        }
     }
+
+
+    INDEX_TEMPLATE_ARGUMENTS
+    LEAFPAGE_TYPE *BPLUSTREE_TYPE::getLeftMostPage(Page *page) {
+        BPlusTreePage *tree_page = reinterpret_cast<BPlusTreePage*>
+        (page->GetData());
+        if (tree_page->IsLeafPage()){
+            return reinterpret_cast<LEAFPAGE_TYPE*>(tree_page);
+        }else{
+            INTERNALPAGE_TYPE *internal =
+                    reinterpret_cast<INTERNALPAGE_TYPE*>(page->GetData());
+            page_id_t first_val = internal->ValueAt(0);
+            Page *child_page = buffer_pool_manager_->FetchPage(first_val);
+            if (!internal->IsRootPage()){
+                buffer_pool_manager_->UnpinPage(internal->GetPageId(), false);
+            }
+            return getLeftMostPage(child_page);
+        }
+    }
+
+
 
 /*
  * Update/Insert root page id in header page(where page_id = 0, header_page is

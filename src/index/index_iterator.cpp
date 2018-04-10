@@ -2,7 +2,9 @@
  * index_iterator.cpp
  */
 #include <cassert>
-
+#include <include/page/b_plus_tree_page.h>
+#include "page/b_plus_tree_leaf_page.h"
+#include "page/b_plus_tree_internal_page.h"
 #include "index/index_iterator.h"
 
 namespace cmudb {
@@ -14,10 +16,10 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     INDEXITERATOR_TYPE::IndexIterator(
                 page_id_t page_id, KeyType key,
-                BufferPoolManager *buffer_pool_manager, KeyComparator *cmp):
+                BufferPoolManager *buffer_pool_manager, KeyComparator &cmp):
     buffer_pool_manager(buffer_pool_manager), is_end(false) {
         Page *page = buffer_pool_manager->FetchPage(page_id);
-        leaf = reinterpret_cast<BPlusTreeLeafPage*>(page->GetData());
+        leaf = reinterpret_cast<LEAFPAGE_TYPE*>(page->GetData());
         idx = leaf->KeyIndex(key, cmp);
     }
 
@@ -42,29 +44,30 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     const MappingType& INDEXITERATOR_TYPE::operator*() {
         assert(!is_end);
-        const MappingType entry = leaf->GetItem(idx);
+        const MappingType &entry = leaf->GetItem(idx);
         return entry;
     }
 
 
     INDEX_TEMPLATE_ARGUMENTS
-    IndexIterator& INDEXITERATOR_TYPE::operator++() {
-        if (idx == (leaf->GetSize() - 1)){
+    INDEXITERATOR_TYPE& INDEXITERATOR_TYPE::operator++() {
+        if (idx == static_cast<size_t>(leaf->GetSize() - 1)){
             page_id_t  next_id = leaf->GetNextPageId();
             if (next_id == INVALID_PAGE_ID){
                 is_end = true;
             }else{
-                buffer_pool_manager->UnpinPage(leaf->GetPageId(), false);
                 Page *page = buffer_pool_manager->FetchPage(next_id);
-                leaf = reinterpret_cast<BPlusTreeLeafPage*>(page->GetData());
+                leaf = reinterpret_cast<LEAFPAGE_TYPE*>(page->GetData());
                 idx = 0;
-                return *this;
             }
+            buffer_pool_manager->UnpinPage(leaf->GetPageId(), false);
+            return *this;
         }else{
             idx++;
             return *this;
         }
     }
+
 
 
     template

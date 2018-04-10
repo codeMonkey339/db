@@ -103,6 +103,7 @@ namespace cmudb {
         &result, Transaction *trans);
         LEAFPAGE_TYPE *getLeafPage(const KeyType &key, Page *page,
                                    Transaction *transaction);
+        LEAFPAGE_TYPE *getLeftMostPage(Page *page);
         bool needCoalesceOrRedist(size_t parent_size, size_t parent_max_size);
         template<typename N>
         void remove_entry(const KeyType &key, ValueType &value, N *node,
