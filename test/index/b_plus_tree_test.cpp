@@ -330,7 +330,7 @@ namespace cmudb {
         auto header_page = bpm->NewPage(page_id);
         (void) header_page;
 
-        int64_t scale = 1200;
+        int64_t scale = 1000;
         //int64_t scale = 1000;
         std::vector<int64_t> keys;
         for (int64_t key = 1; key < scale; key++) {
