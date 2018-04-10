@@ -670,7 +670,10 @@ namespace cmudb {
  * @return : index iterator
  */
     INDEX_TEMPLATE_ARGUMENTS
-    INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() { return INDEXITERATOR_TYPE(); }
+    INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
+        LEAFPAGE_TYPE *leaf = getLeafPage()
+        //todo:
+    }
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key

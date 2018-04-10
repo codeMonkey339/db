@@ -19,6 +19,8 @@ namespace cmudb {
                 page_id_t page_id, KeyType key,
                 BufferPoolManager *buffer_pool_manager, KeyComparator *cmp);
 
+        IndexIterator();
+
         ~IndexIterator();
 
         bool isEnd();

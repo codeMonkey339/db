@@ -22,6 +22,11 @@ namespace cmudb {
     }
 
     INDEX_TEMPLATE_ARGUMENTS
+    INDEXITERATOR_TYPE::IndexIterator() {
+        //todo: no arg constructor
+    }
+
+    INDEX_TEMPLATE_ARGUMENTS
     INDEXITERATOR_TYPE::~IndexIterator() {
         if (!is_end){
             page_id_t page_id = leaf->GetPageId();

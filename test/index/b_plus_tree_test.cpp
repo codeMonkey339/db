@@ -54,25 +54,25 @@ namespace cmudb {
             EXPECT_EQ(rids[0].GetSlotNum(), value);
         }
 
-//  int64_t start_key = 1;
-//  int64_t current_key = start_key;
-//  index_key.SetFromInteger(start_key);
-//  for (auto iterator = tree.Begin(index_key); iterator.isEnd() == false;
-//       ++iterator) {
-//    auto location = (*iterator).second;
-//    EXPECT_EQ(location.GetPageId(), 0);
-//    EXPECT_EQ(location.GetSlotNum(), current_key);
-//    current_key = current_key + 1;
-//  }
-//
-//  EXPECT_EQ(current_key, keys.size() + 1);
-//
-//  bpm->UnpinPage(HEADER_PAGE_ID, true);
-//  delete transaction;
-//  delete disk_manager;
-//  delete bpm;
-//  remove("test.db");
-//  remove("test.log");
+        int64_t start_key = 1;
+        int64_t current_key = start_key;
+        index_key.SetFromInteger(start_key);
+        for (auto iterator = tree.Begin(index_key); iterator.isEnd() == false;
+             ++iterator) {
+            auto location = (*iterator).second;
+            EXPECT_EQ(location.GetPageId(), 0);
+            EXPECT_EQ(location.GetSlotNum(), current_key);
+            current_key = current_key + 1;
+        }
+
+        EXPECT_EQ(current_key, keys.size() + 1);
+
+        bpm->UnpinPage(HEADER_PAGE_ID, true);
+        delete transaction;
+        delete disk_manager;
+        delete bpm;
+        remove("test.db");
+        remove("test.log");
     }
 
     TEST(BPlusTreeTests, InsertTest2) {
