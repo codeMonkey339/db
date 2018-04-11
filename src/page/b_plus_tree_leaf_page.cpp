@@ -84,7 +84,7 @@ namespace cmudb {
     INDEX_TEMPLATE_ARGUMENTS
     int B_PLUS_TREE_LEAF_PAGE_TYPE::findInsertPos(KeyType key,
                                                   KeyComparator comparator) {
-        for (int i = 1; i < GetSize(); i++){
+        for (int i = 0; i < GetSize(); i++){
             if (comparator(key, array[i].first) < 0){
                 return i;
             }

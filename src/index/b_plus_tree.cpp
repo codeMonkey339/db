@@ -686,9 +686,13 @@ namespace cmudb {
     INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
         Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
         LEAFPAGE_TYPE *leaf = getLeafPage(key, page, nullptr);
-        buffer_pool_manager_->UnpinPage(root_page_id_, false);
-        return INDEXITERATOR_TYPE(leaf->GetPageId(), key,
+        if (leaf->GetPageId() != root_page_id_){
+            buffer_pool_manager_->UnpinPage(root_page_id_, false);
+        }
+        INDEXITERATOR_TYPE res = INDEXITERATOR_TYPE(leaf->GetPageId(), key,
                                   buffer_pool_manager_, comparator_);
+        buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
+        return res;
     }
 
 /*****************************************************************************
